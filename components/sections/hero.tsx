@@ -1,27 +1,24 @@
 import { NuSignalLogo } from "@/components/brand/nusignal-logo";
 import { Waveform } from "@/components/ui/waveform";
 import { AetherRibbonMesh } from "@/components/ui/aether-ribbon-mesh";
-
-const hud = "pointer-events-none absolute font-mono text-[10px] sm:text-xs uppercase tracking-[0.2em] text-mute";
+import { CTA } from "@/components/sections/info";
 
 export default function Hero() {
   return (
-    <section id="hero" className="relative flex min-h-svh items-center justify-center overflow-hidden bg-void">
+    <section id="hero" className="relative flex h-full min-h-svh w-full items-center justify-center overflow-hidden bg-void">
       <style>{`
         @keyframes ns-ring { 0% { transform: translate(-50%,-50%) scale(.25); opacity: .7 } 100% { transform: translate(-50%,-50%) scale(1); opacity: 0 } }
         @keyframes ns-blink { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
-        @keyframes ns-cue { 0% { transform: translateY(0); opacity: 0 } 40% { opacity: 1 } 100% { transform: translateY(10px); opacity: 0 } }
-        .ns-ring { position:absolute; left:50%; top:50%; width:min(140vw,1100px); aspect-ratio:1; border-radius:9999px;
+        .ns-ring { position:absolute; left:50%; top:50%; width:min(140vw,1100px,90svh); aspect-ratio:1; border-radius:9999px;
           border:1px solid var(--color-signal); animation: ns-ring 6s cubic-bezier(.2,.6,.3,1) infinite; }
         .ns-blink { animation: ns-blink 2.4s ease-in-out infinite }
-        .ns-cue { animation: ns-cue 1.8s ease-in infinite }
-        @media (prefers-reduced-motion: reduce) { .ns-ring, .ns-blink, .ns-cue { animation: none } .ns-ring { opacity:.15; transform:translate(-50%,-50%) scale(.5) } }
+        @media (prefers-reduced-motion: reduce) { .ns-ring, .ns-blink { animation: none } .ns-ring { opacity:.15; transform:translate(-50%,-50%) scale(.5) } }
       `}</style>
 
-      <AetherRibbonMesh />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(5,6,8,.55)_45%,#050608_95%)]" />
+      <div className="absolute inset-0 z-0"><AetherRibbonMesh /></div>
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(5,6,8,.55)_45%,#050608_95%)]" />
 
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         {[0, 1.5, 3, 4.5].map((d) => (
           <span key={d} className="ns-ring" style={{ animationDelay: `-${d}s` }} />
         ))}
@@ -34,19 +31,15 @@ export default function Hero() {
           <circle cx="60" cy="20" r="4" fill="currentColor" stroke="none" />
         </svg>
         <NuSignalLogo className="w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />
+        <p className="mt-8 text-balance text-center font-display text-lg text-[#cfe0ff] sm:text-xl">
+          Black doubleshot caps with signal-blue legends, by GMK.
+        </p>
+        <CTA className="mt-8" />
       </div>
 
-      <div className={`${hud} left-4 top-4 sm:left-8 sm:top-8`}>CH 01 · 2.4GHz</div>
-      <div className={`${hud} right-4 top-4 sm:right-8 sm:top-8`}>
-        SIGNAL <span className="text-signal-bright">▮▮▮</span><span className="ns-blink text-signal-bright">▮</span>
-      </div>
-      <div className="absolute bottom-4 left-4 z-10 flex flex-col items-start gap-3 sm:bottom-8 sm:left-8">
+      <div className="absolute bottom-4 left-4 z-10 sm:bottom-8 sm:left-6 lg:left-24">
         <Waveform label="CARRIER · CH 01" bars={24} intensity="medium" variant="bright" className="hidden w-56 md:block lg:w-64" />
-        <span className="pointer-events-none font-mono text-[10px] uppercase tracking-[0.2em] text-mute sm:text-xs">GB · TBA</span>
       </div>
-      <a href="#signal-loss" className={`${hud} pointer-events-auto bottom-4 right-4 flex items-center gap-2 hover:text-signal-bright sm:bottom-8 sm:right-8`}>
-        Scroll <span className="ns-cue inline-block">↓</span>
-      </a>
     </section>
   );
 }
