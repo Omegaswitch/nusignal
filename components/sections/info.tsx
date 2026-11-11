@@ -1,6 +1,10 @@
 
+import { NuSignalMark } from "@/components/brand/nusignal-logo";
+
 /* TODO: every value here is a placeholder until the group buy is confirmed. */
-type Kit = { name: string; image: string };
+
+// image is optional: kits without a render yet show a placeholder square
+type Kit = { name: string; image?: string };
 type Stage = { label: string; date: string; live?: boolean };
 
 const INFO: {
@@ -13,6 +17,11 @@ const INFO: {
   kits: [
     { name: "Base", image: "/images/kit-base.webp" },
     { name: "Novelties", image: "/images/kit-novelties.webp" },
+    // TODO: add renders to public/images and set image for these
+    { name: "Numpad" },
+    { name: "Alt mods" },
+    { name: "Extension" },
+    { name: "NorDeUK" },
   ],
   colours: [
     { name: "Black", code: "CR", hex: "#0d0f13", ink: "#cfe0ff" },
@@ -57,28 +66,50 @@ export function CTA({ className = "" }: { className?: string }) {
 
 const safeHref = (u?: string) => (u?.startsWith("https:") ? u : undefined);
 
+function KitImage({ kit, className = "" }: { kit: Kit; className?: string }) {
+  return (
+    // skeleton is the wrapper's background: the opaque img paints over it on load, so no JS is needed
+    <div className={`relative aspect-square w-full bg-cap ${kit.image ? "ns-skeleton" : "grid place-items-center"} ${className}`}>
+      {kit.image ? (
+        // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser
+        <img src={kit.image} alt={`GMK nuSignal ${kit.name} kit render`} width={1600} height={1600} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <NuSignalMark className="w-1/4 opacity-25" />
+      )}
+    </div>
+  );
+}
+
 function KitScreen({ kit }: { kit: Kit }) {
   const id = `kit-${kit.name.toLowerCase()}`;
   return (
     <section id={id} aria-labelledby={`${id}-h`} className={`${screen} items-center`}>
       <h2 id={`${id}-h`} className="font-display text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-tight text-signal-bright">{kit.name}</h2>
-      {/* skeleton is the wrapper's background: the opaque img paints over it on load, so no JS is needed */}
-      <div className="ns-skeleton relative mt-6 aspect-square w-full max-w-[min(100%,calc(100svh-14rem))] bg-cap lg:mt-8">
-        {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
-        <img src={kit.image} alt={`GMK nuSignal ${kit.name} kit render`} width={1600} height={1600} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-      </div>
+      <KitImage kit={kit} className="mt-6 max-w-[min(100%,calc(100svh-14rem))] lg:mt-8" />
     </section>
   );
 }
 
 export default function Info() {
   const { kits, colours, timeline, vendors, faq } = INFO;
-  const [base, novelties] = kits;
+  const [base, novelties, ...addons] = kits;
   return (
     <div id="info" className="bg-void px-4 text-signal-bright sm:px-6 lg:px-24">
       <div className="wrap mx-auto max-w-[1440px]">
         <KitScreen kit={base} />
         <KitScreen kit={novelties} />
+
+        <section id="kits-addons" aria-labelledby="kits-addons-h" className={screen}>
+          <h2 id="kits-addons-h" className="sr-only">Add-on kits</h2>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4 lg:gap-6">
+            {addons.map((k) => (
+              <li key={k.name} className="flex flex-col items-center">
+                <h3 className="font-display text-[clamp(1.5rem,2.5vw,2.25rem)] leading-none tracking-tight text-signal-bright">{k.name}</h3>
+                <KitImage kit={k} className="mt-4 lg:mt-6" />
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section id="colours" aria-labelledby="colours-h" className={screen}>
           <h2 id="colours-h" className={h2}>GMK CR black, V4 blue</h2>
