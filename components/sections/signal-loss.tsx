@@ -12,20 +12,26 @@ import Hero from "@/components/sections/hero";
  * then NO SIGNAL, then the kits lock in. DOM is updated via refs (no React re-renders on scroll).
  */
 
-const KITS = [
-  { src: "/images/kit-base.webp", name: "BASE KIT" },
-  { src: "/images/kit-novelties.webp", name: "NOVELTIES" },
+// TODO: add renders for the kits without src; until then they lock in as a placeholder square
+const KITS: { name: string; src?: string }[] = [
+  { name: "Base kit", src: "/images/kit-base.webp" },
+  { name: "Novelties", src: "/images/kit-novelties.webp" },
+  { name: "Numpad" },
+  { name: "Alt mods" },
+  { name: "Extension" },
+  { name: "NorDeUK" },
 ];
 
-// section progress (0..1). Snap anchors sit on clean rest states: hero, base kit locked, novelties locked.
-// NO SIGNAL plays during the first move instead of being its own stop.
-const ANCHORS = [0, 0.5, 1];
-const LOGO_END = 0.22;   // hero logo loses signal
-const STATIC_END = 0.3;  // static flash, then NO SIGNAL
-const KIT_START = [0.3, 0.56];
-const KIT_LOCKED = [0.46, 0.9]; // each anchor sits in its kit's locked hold
-const KIT_FADE = 0.04;   // glitch-out before the next kit
-const SCROLL_SVH = 200;  // scroll distance; the section is this plus one stage tall
+// section progress (0..1), one segment per kit. Snap anchors sit on clean rest states: the hero, then each kit locked.
+// The first move also carries the logo loss and NO SIGNAL, which is not its own stop.
+const SEG = 1 / KITS.length;
+const ANCHORS = KITS.map((_, i) => i * SEG).concat(1);
+const LOGO_END = 0.44 * SEG;   // hero logo loses signal
+const STATIC_END = 0.6 * SEG;  // static flash, then NO SIGNAL
+const KIT_START = KITS.map((_, i) => (i ? (i + 0.12) * SEG : STATIC_END));
+const KIT_LOCKED = KITS.map((_, i) => (i ? (i + 0.8) * SEG : 0.92 * SEG)); // each anchor sits in its kit's locked hold
+const KIT_FADE = 0.08 * SEG;   // glitch-out before the next kit
+const SCROLL_SVH = 100 * KITS.length; // scroll distance; the section is this plus one stage tall
 const K = 6;             // display progress easing rate (1/s)
 const VMAX = 0.5;        // display progress speed cap (1/s): about one phase per second
 const MAX_LEVEL = 8;     // largest mosaic block: 2^8 device px
@@ -98,13 +104,14 @@ export default function SignalLoss() {
     let lineStep = 3;
 
     const imgs = KITS.map((k) => {
+      if (!k.src) return null;
       const im = new Image();
       im.decoding = "async";
       im.onload = () => { dirty = true; schedule(); };
       im.src = k.src;
       return im;
     });
-    const loaded = (i: number) => imgs[i].complete && !!imgs[i].naturalWidth;
+    const loaded = (i: number) => { const im = imgs[i]; return !im || (im.complete && !!im.naturalWidth); };
 
     let W = 0, H = 0, dpr = 1;
     let box = { x: 0, y: 0, s: 0 };
@@ -232,8 +239,24 @@ export default function SignalLoss() {
       c.fillStyle = VOID;
       c.fillRect(0, 0, w, h);
       const x = box.x * dpr, y = box.y * dpr, s = box.s * dpr;
+      const im = imgs[i];
+      if (!im) {
+        // placeholder: cap-black square with a faint "nu" from the logo paths
+        c.fillStyle = "#0d0f13";
+        c.fillRect(x, y, s, s);
+        const k = (s * 0.3) / 90; // "nu" spans ~90 x 50 logo units
+        c.save();
+        c.translate(x + s / 2 - 45 * k, y + s / 2 - 70 * k);
+        c.scale(k, k);
+        c.lineCap = c.lineJoin = "round";
+        c.strokeStyle = "rgba(59,139,255,0.3)";
+        c.lineWidth = 9;
+        word.slice(0, 2).forEach((path) => c.stroke(path));
+        c.restore();
+        return;
+      }
       if (loaded(i)) {
-        c.drawImage(imgs[i], x, y, s, s);
+        c.drawImage(im, x, y, s, s);
         return;
       }
       // skeleton: dim panel with a scanning band, so the frame is never an empty box
@@ -387,7 +410,8 @@ export default function SignalLoss() {
       } else {
         // ---- kits resolve: blocks refine, aberration converges to zero, grain fades
         heroState(1, t);
-        const i = p < KIT_START[1] ? 0 : 1;
+        let i = 0;
+        while (i + 1 < KITS.length && p >= KIT_START[i + 1]) i++;
         const lock = clamp((p - KIT_START[i]) / (KIT_LOCKED[i] - KIT_START[i]));
         const next = KIT_START[i + 1];
         const out = next ? smooth(next - KIT_FADE, next, p) : 0;
@@ -459,7 +483,7 @@ export default function SignalLoss() {
       ro.disconnect();
       lro.disconnect();
       mq.removeEventListener("change", onMotion);
-      imgs.forEach((im) => { im.onload = null; });
+      imgs.forEach((im) => { if (im) im.onload = null; });
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", schedule);
     };
@@ -490,7 +514,7 @@ export default function SignalLoss() {
         {/* no-JS fallback; JS users get the canvas and never download these eagerly */}
         <noscript>
           <div className="absolute inset-4 flex items-center justify-center gap-4">
-            {KITS.map((k) => (
+            {KITS.filter((k) => k.src).map((k) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={k.src} src={k.src} alt={`GMK nuSignal ${k.name.toLowerCase()} render`} className="max-h-full w-1/2 object-contain" />
             ))}
@@ -501,7 +525,7 @@ export default function SignalLoss() {
         <div className="pointer-events-none absolute inset-x-4 top-12 text-center sm:top-16">
           {KITS.map((k, j) => (
             <h2
-              key={k.src}
+              key={k.name}
               ref={(el) => { headRefs.current[j] = el; }}
               className="absolute inset-x-0 font-display text-lg font-bold uppercase tracking-[0.15em] text-signal-bright opacity-0 sm:text-2xl"
             >
