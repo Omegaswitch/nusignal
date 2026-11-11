@@ -45,56 +45,67 @@ export function Waveform({
   className,
   ...props
 }: WaveformProps) {
-  const [heights, setHeights] = React.useState<number[]>(() =>
-    Array.from({ length: bars }, () => 4)
-  )
-  const rafRef = React.useRef<number>(0)
-  const frameRef = React.useRef(0)
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const barRefs = React.useRef<(HTMLDivElement | null)[]>([])
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const range = intensityRange[intensity]
+  const barClass = cn("w-1.5 rounded-t-sm", variantColor[variant], playing && variantGlow[variant])
 
   React.useEffect(() => {
     const audio = audioRef.current
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (!playing || reduced) {
-      setHeights(
-        Array.from({ length: bars }, (_, i) =>
-          playing ? range.min + (range.max - range.min) * (Math.sin(i * 0.5) * 0.5 + 0.5) : 4
-        )
-      )
-      audio?.pause()
-      return
+    const root = rootRef.current!
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    let raf = 0, f = 0, onScreen = false
+
+    // write straight to the DOM: a setState per frame re-rendered every bar at 60fps
+    const paint = (h: (i: number) => number) => {
+      barRefs.current.forEach((el, i) => {
+        if (!el) return
+        const v = h(i)
+        el.style.height = Math.max(2, v) + "px"
+        el.style.opacity = String(playing ? 0.5 + (v / CONTAINER_HEIGHT) * 0.5 : 0.2)
+      })
+    }
+    const still = () =>
+      paint((i) => (playing ? range.min + (range.max - range.min) * (Math.sin(i * 0.5) * 0.5 + 0.5) : 4))
+    const animate = () => {
+      // display:none parents still intersect as 0x0, so check offsetParent too
+      if (!root.offsetParent) { raf = 0; return }
+      f++
+      paint((i) => {
+        const wave1 = Math.sin(f * 0.06 + i * 0.5) * 0.5 + 0.5
+        const wave2 = Math.sin(f * 0.1 + i * 0.3 + 2) * 0.3 + 0.3
+        const noise = Math.random() * 0.2
+        return range.min + (range.max - range.min) * ((wave1 + wave2 + noise) / 1.5)
+      })
+      raf = requestAnimationFrame(animate)
+    }
+    const update = () => {
+      cancelAnimationFrame(raf); raf = 0
+      if (playing && !mq.matches && onScreen) raf = requestAnimationFrame(animate)
+      else still()
     }
 
-    if (audioSrc && audio) audio.play().catch(() => {})
-
-    function animate() {
-      frameRef.current++
-      const f = frameRef.current
-      setHeights(
-        Array.from({ length: bars }, (_, i) => {
-          const wave1 = Math.sin(f * 0.06 + i * 0.5) * 0.5 + 0.5
-          const wave2 = Math.sin(f * 0.1 + i * 0.3 + 2) * 0.3 + 0.3
-          const noise = Math.random() * 0.2
-          const combined = (wave1 + wave2 + noise) / 1.5
-          return range.min + (range.max - range.min) * combined
-        })
-      )
-      rafRef.current = requestAnimationFrame(animate)
-    }
-
-    rafRef.current = requestAnimationFrame(animate)
+    const io = new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; update() })
+    io.observe(root)
+    mq.addEventListener("change", update)
+    still()
+    if (playing && audioSrc && audio) audio.play().catch(() => {})
+    else audio?.pause()
     return () => {
-      cancelAnimationFrame(rafRef.current)
+      cancelAnimationFrame(raf)
+      io.disconnect()
+      mq.removeEventListener("change", update)
       audio?.pause()
     }
   }, [playing, bars, range.min, range.max, audioSrc])
 
   return (
     <div
+      ref={rootRef}
       data-slot="tron-waveform"
       className={cn(
-        "relative overflow-hidden rounded border border-primary/30 bg-card/80 p-3 backdrop-blur-sm",
+        "relative overflow-hidden rounded border border-primary/30 bg-card/90 p-3",
         className
       )}
       {...props}
@@ -111,12 +122,8 @@ export function Waveform({
       )}
 
       <div className="flex items-end justify-center gap-[2px]" style={{ height: CONTAINER_HEIGHT }}>
-        {heights.map((h, i) => (
-          <div
-            key={i}
-            className={cn("w-1.5 rounded-t-sm", variantColor[variant], playing && variantGlow[variant])}
-            style={{ height: Math.max(2, h), opacity: playing ? 0.5 + (h / CONTAINER_HEIGHT) * 0.5 : 0.2 }}
-          />
+        {Array.from({ length: bars }, (_, i) => (
+          <div key={i} ref={(el) => { barRefs.current[i] = el }} className={barClass} style={{ height: 4 }} />
         ))}
       </div>
 

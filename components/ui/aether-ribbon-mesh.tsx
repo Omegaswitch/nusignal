@@ -25,8 +25,10 @@ export function AetherRibbonMesh({
     const ctx = canvas?.getContext("2d");
     if (!canvas || !parent || !ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let w = 0, h = 0, raf = 0, visible = true, t = 0;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = mq.matches;
+    let w = 0, h = 0, raf = 0, visible = true, t = 0, last = 0;
+    let rect = canvas.getBoundingClientRect();
     const mouse = { x: -9999, y: -9999, active: false };
     const ripples: Ripple[] = [];
     const particles: Particle[] = [];
@@ -57,7 +59,8 @@ export function AetherRibbonMesh({
         }
         ctx.strokeStyle = COLORS[i % COLORS.length];
         ctx.globalAlpha = 0.18 + 0.4 * Math.sin(Math.PI * p);
-        ctx.lineWidth = 1 + (i % 3 === 1 ? 0.6 : 0);
+        // thin 1px lines nearly vanish on a phone, so thicken them as the canvas narrows
+        ctx.lineWidth = (1 + (i % 3 === 1 ? 0.6 : 0)) * Math.max(1, 700 / w);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
@@ -67,7 +70,11 @@ export function AetherRibbonMesh({
       }
     };
 
-    const tick = () => {
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      // ~40fps is plenty for slow ribbons and halves the cost on 120Hz screens
+      if (now - last < 24) return;
+      last = now;
       t += 0.012;
       for (let i = ripples.length - 1; i >= 0; i--) {
         const r = ripples[i]; r.r += 6; r.life -= 0.012;
@@ -78,14 +85,14 @@ export function AetherRibbonMesh({
         if (p.life <= 0) particles.splice(i, 1);
       }
       draw();
-      raf = requestAnimationFrame(tick);
     };
     const start = () => { if (!reduced && visible && !raf) raf = requestAnimationFrame(tick); };
     const stop = () => { cancelAnimationFrame(raf); raf = 0; };
 
     const resize = () => {
-      const rect = parent.getBoundingClientRect();
-      w = rect.width; h = rect.height;
+      const pr = parent.getBoundingClientRect();
+      w = pr.width; h = pr.height;
+      rect = canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -93,8 +100,7 @@ export function AetherRibbonMesh({
     };
 
     const local = (e: PointerEvent) => {
-      const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
     const onMove = (e: PointerEvent) => { Object.assign(mouse, local(e), { active: true }); };
     const onLeave = () => { mouse.active = false; };
@@ -102,7 +108,8 @@ export function AetherRibbonMesh({
       if (reduced) return;
       const { x, y } = local(e);
       ripples.push({ x, y, r: 0, life: 1 });
-      for (let i = 0; i < 24; i++) {
+      // cap so rapid clicking cannot pile up thousands of particles
+      for (let i = 0; i < 24 && particles.length < 200; i++) {
         const a = (i / 24) * Math.PI * 2, s = 1.5 + Math.random() * 3;
         particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1 });
       }
@@ -115,6 +122,11 @@ export function AetherRibbonMesh({
       if (visible) start(); else stop();
     });
     io.observe(canvas);
+    // cached rect instead of a layout read on every pointermove
+    const onScroll = () => { rect = canvas.getBoundingClientRect(); };
+    const onMotion = () => { reduced = mq.matches; if (reduced) stop(); else start(); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    mq.addEventListener("change", onMotion);
     parent.addEventListener("pointermove", onMove);
     parent.addEventListener("pointerleave", onLeave);
     parent.addEventListener("pointerdown", onDown);
@@ -123,6 +135,8 @@ export function AetherRibbonMesh({
 
     return () => {
       stop(); ro.disconnect(); io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      mq.removeEventListener("change", onMotion);
       parent.removeEventListener("pointermove", onMove);
       parent.removeEventListener("pointerleave", onLeave);
       parent.removeEventListener("pointerdown", onDown);
