@@ -25,16 +25,16 @@ export default function Hero() {
       </div>
 
       <h1 className="sr-only">GMK nuSignal</h1>
-      <div data-hero-logo className="relative z-10 flex w-[92vw] md:w-[70vw] max-w-[1200px] flex-col items-center">
+      <div className="relative z-10 flex w-[92vw] md:w-[70vw] max-w-[1200px] flex-col items-center">
         <svg aria-hidden viewBox="0 0 120 40" className="ns-blink mb-6 w-16 text-signal-bright sm:w-20" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.5">
           <path d="M42 8 a18 18 0 0 0 0 24 M78 8 a18 18 0 0 1 0 24 M30 2 a30 30 0 0 0 0 36 M90 2 a30 30 0 0 1 0 36" />
           <circle cx="60" cy="20" r="4" fill="currentColor" stroke="none" />
         </svg>
-        <NuSignalLogo className="w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />
-        <p className="mt-8 text-balance text-center font-display text-lg text-[#cfe0ff] sm:text-xl">
-          Black doubleshot caps with signal-blue legends, by GMK.
-        </p>
-        <CTA className="mt-8" />
+        {/* data-hero-logo marks the exact logo rect the signal-loss canvas redraws over */}
+        <div data-hero-logo className="w-full">
+          <NuSignalLogo className="w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />
+        </div>
+        <CTA className="mt-10" />
       </div>
 
       <div className="absolute bottom-4 left-4 z-10 sm:bottom-8 sm:left-6 lg:left-24">
