@@ -1,7 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 
 /* TODO: every value here is a placeholder until the group buy is confirmed. */
-type Kit = { name: string; title: string; price: string; keys: string; image?: string; contents: string[] };
+type Kit = { name: string; image?: string };
 type Stage = { label: string; date: string; live?: boolean };
 
 const INFO: {
@@ -12,16 +12,10 @@ const INFO: {
   faq: { q: string; a: string }[];
 } = {
   kits: [
-    {
-      name: "Base", title: "Base: black caps, blue legends", price: "TBA", keys: "~150 keys", image: "/images/kit-base.webp",
-      contents: ["TKL alphas and modifiers", "6.25u, 7u and 6u spacebars", "ISO enter", "Blue accent Esc, arrows and enter"],
-    },
-    {
-      name: "Novelties", title: "Novelties: radios, dishes, towers", price: "TBA", keys: "TBA keys", image: "/images/kit-novelties.webp",
-      contents: ["Radio waves, dish and walkie-talkie in black and blue", "2.25u satellite", "Tower ISO enter", "Six oscilloscope-wave R4 caps"],
-    },
-    { name: "Spacebars", title: "Spacebars", price: "TBA", keys: "TBA keys", contents: ["Sizes TBA"] },
-    { name: "40s", title: "40s", price: "TBA", keys: "TBA keys", contents: ["Layout TBA"] },
+    { name: "Base", image: "/images/kit-base.webp" },
+    { name: "Novelties", image: "/images/kit-novelties.webp" },
+    { name: "Spacebars" },
+    { name: "40s" },
   ],
   colours: [
     { name: "Black", code: "CR", hex: "#0d0f13", ink: "#cfe0ff" },
@@ -84,21 +78,14 @@ function KitScreen({ kit, extra }: { kit: Kit; extra?: Kit[] }) {
           </div>
         </a>
         <div className="lg:col-span-5">
-          <h2 id={`${id}-h`} className="font-display text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-tight text-signal-bright">{kit.title}</h2>
-          <p className="mt-3 font-mono text-base tabular-nums">{kit.price} · {kit.keys}</p>
-          <ul className={`mt-4 space-y-1 font-display text-base leading-snug sm:text-lg lg:mt-6 lg:space-y-2 ${ink}`}>
-            {kit.contents.map((c) => <li key={c}>{c}</li>)}
-          </ul>
+          <h2 id={`${id}-h`} className="font-display text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-tight text-signal-bright">{kit.name}</h2>
           <a href={kit.image} className="mt-4 inline-flex items-center gap-1 font-mono text-base underline underline-offset-4 hover:text-signal-bright focus-visible:outline-2 focus-visible:outline-signal-bright lg:mt-6">
             Full render <ArrowUpRight aria-hidden className="h-4 w-4" />
           </a>
           {extra && (
             <ul className="mt-4 space-y-2 font-display text-base lg:mt-10">
               {extra.map((k) => (
-                <li key={k.name} className="flex flex-wrap justify-between gap-x-4 bg-cap px-4 py-2 lg:py-3">
-                  <span className="text-signal-bright">{k.name}</span>
-                  <span className={`font-mono tabular-nums ${ink}`}>{k.contents.join(", ")} · {k.price}</span>
-                </li>
+                <li key={k.name} className="bg-cap px-4 py-2 text-signal-bright lg:py-3">{k.name}</li>
               ))}
             </ul>
           )}
