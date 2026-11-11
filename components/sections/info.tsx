@@ -7,7 +7,6 @@ const INFO: {
   colours: { name: string; code: string; hex: string; ink: string }[];
   timeline: Stage[];
   vendors: { region: string; vendor: string; url?: string }[];
-  faq: { q: string; a: string }[];
 } = {
   colours: [
     { name: "Black", code: "CR", hex: "#0d0f13", ink: "#cfe0ff" },
@@ -26,12 +25,6 @@ const INFO: {
     { region: "United Kingdom", vendor: "TBA" },
     { region: "Oceania", vendor: "TBA" },
     { region: "Asia", vendor: "TBA" },
-  ],
-  faq: [
-    { q: "When does the group buy open?", a: "TBA. Dates will be posted here once the interest check closes." },
-    { q: "Is the ISO enter in Base?", a: "Yes, the ISO enter is part of the Base kit." },
-    { q: "Will there be extras?", a: "GMK usually produces a small run of extras; vendors announce availability after fulfilment." },
-    { q: "How long is production?", a: "Estimates are set by GMK and can move. Updates will be posted here." },
   ],
 };
 
@@ -53,7 +46,7 @@ export function CTA({ className = "" }: { className?: string }) {
 const safeHref = (u?: string) => (u?.startsWith("https:") ? u : undefined);
 
 export default function Info() {
-  const { colours, timeline, vendors, faq } = INFO;
+  const { colours, timeline, vendors } = INFO;
   return (
     <div id="info" className="bg-void px-4 text-signal-bright sm:px-6 lg:px-24">
       <div className="wrap mx-auto max-w-[1440px]">
@@ -92,7 +85,10 @@ export default function Info() {
 
         <section id="vendors" aria-labelledby="vendors-h" className={screen}>
           <div className={split}>
-            <h2 id="vendors-h" className={`${h2} lg:col-span-7`}>Regional vendors</h2>
+            <div className="lg:col-span-7">
+              <h2 id="vendors-h" className={h2}>Regional vendors</h2>
+              <CTA className="mt-6 lg:mt-10" />
+            </div>
             <table className="w-full border-collapse font-mono text-base tabular-nums lg:col-span-5">
               <thead>
                 <tr className="border-b border-signal text-left">
@@ -105,33 +101,13 @@ export default function Info() {
                   const href = safeHref(v.url);
                   return (
                     <tr key={v.region} className="border-b border-cap-edge">
-                      <td className={`py-4 ${ink}`}>{v.region}</td>
-                      <td className={`py-4 text-right ${ink}`}>{href ? <a href={href} className="underline">{v.vendor}</a> : v.vendor}</td>
+                      <td className={`py-2 sm:py-4 ${ink}`}>{v.region}</td>
+                      <td className={`py-2 text-right sm:py-4 ${ink}`}>{href ? <a href={href} className="underline">{v.vendor}</a> : v.vendor}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
-        </section>
-
-        <section id="faq" aria-labelledby="faq-h" className={screen}>
-          <div className={split}>
-            <div className="lg:col-span-7">
-              <h2 id="faq-h" className={h2}>Group buy questions</h2>
-              <CTA className="mt-10" />
-            </div>
-            <div className="lg:col-span-5">
-              {faq.map((f) => (
-                <details key={f.q} className="group mb-2 bg-cap px-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-display text-lg text-signal-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-bright [&::-webkit-details-marker]:hidden">
-                    {f.q}
-                    <span aria-hidden className="font-mono transition-transform group-open:rotate-45">+</span>
-                  </summary>
-                  <p className={`pb-5 font-display text-base leading-relaxed ${ink}`}>{f.a}</p>
-                </details>
-              ))}
-            </div>
           </div>
         </section>
       </div>

@@ -10,7 +10,7 @@ export default function Hero() {
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(5,6,8,.55)_45%,#050608_95%)]" />
 
       <h1 className="sr-only">GMK nuSignal</h1>
-      <div className="relative z-10 flex w-[92vw] md:w-[70vw] max-w-[1200px] flex-col items-center">
+      <div className="relative z-10 flex w-[92vw] md:w-[70vw] max-w-[min(1200px,150svh)] flex-col items-center">
         {/* data-hero-logo marks the exact logo rect the signal-loss canvas redraws over */}
         <div data-hero-logo className="w-full">
           <NuSignalLogo className="w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />

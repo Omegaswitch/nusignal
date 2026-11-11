@@ -15,6 +15,8 @@
 
 /* locked screens: every section snaps; no smooth scroll so reduced-motion users get instant jumps */
 html { scroll-snap-type: y mandatory; scroll-padding: 0; }
+/* landscape phones are too short to hold a section per screen: let them scroll freely */
+@media (max-height: 500px) { html { scroll-snap-type: none; } }
 html, body { background: var(--color-void); color: var(--color-signal); }
 body { font-family: var(--font-mono); -webkit-font-smoothing: antialiased; }
 ::selection { background: var(--color-signal); color: var(--color-void); }

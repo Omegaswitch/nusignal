@@ -103,15 +103,20 @@ export default function SignalLoss() {
     let lines: CanvasPattern | null = null;
     let lineStep = 3;
 
-    const imgs = KITS.map((k) => {
+    // decoded off the main thread: drawing a freshly loaded <img> decodes it mid-transition and drops frames
+    const bmps: (CanvasImageSource | undefined)[] = [];
+    const imgs = KITS.map((k, i) => {
       if (!k.src) return null;
       const im = new Image();
       im.decoding = "async";
-      im.onload = () => { dirty = true; schedule(); };
+      im.onload = () => {
+        const ready = (b: CanvasImageSource) => { if (im.onload) { bmps[i] = b; dirty = true; schedule(); } };
+        createImageBitmap(im).then(ready, () => ready(im));
+      };
       im.src = k.src;
       return im;
     });
-    const loaded = (i: number) => { const im = imgs[i]; return !im || (im.complete && !!im.naturalWidth); };
+    const loaded = (i: number) => !imgs[i] || !!bmps[i];
 
     let W = 0, H = 0, dpr = 1;
     let box = { x: 0, y: 0, s: 0 };
@@ -255,8 +260,8 @@ export default function SignalLoss() {
         c.restore();
         return;
       }
-      if (loaded(i)) {
-        c.drawImage(im, x, y, s, s);
+      if (bmps[i]) {
+        c.drawImage(bmps[i], x, y, s, s);
         return;
       }
       // skeleton: dim panel with a scanning band, so the frame is never an empty box
@@ -372,8 +377,8 @@ export default function SignalLoss() {
         // ---- phase 1: the hero logo loses signal over a transparent canvas
         const q = p / LOGO_END;
         heroState(q, t);
+        source("logo", drawLogo); // also at rest, so the first scroll frame does not pay for the logo raster
         if (p > 0) {
-          source("logo", drawLogo);
           const g = reduced ? 0 : smooth(0.08, 1, q);
           // sharper bursts only near the end of the loss
           const burst = reduced ? 0 : smooth(0.7, 1, q) * Math.max(0, sn(t * 3.1, 9)) ** 4;
@@ -511,12 +516,13 @@ export default function SignalLoss() {
 
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
 
-        {/* no-JS fallback; JS users get the canvas and never download these eagerly */}
+        {/* no JS: nothing drives the stage, so unpin it and show the hero, then the kit renders, in normal flow */}
         <noscript>
-          <div className="absolute inset-4 flex items-center justify-center gap-4">
+          <style>{`#signal-loss{height:auto!important}#signal-loss>.snap-start,#signal-loss canvas{display:none}#signal-loss>.sticky{position:static;height:auto}#signal-loss .isolate{position:relative;height:100svh}`}</style>
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
             {KITS.filter((k) => k.src).map((k) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={k.src} src={k.src} alt={`GMK nuSignal ${k.name.toLowerCase()} render`} className="max-h-full w-1/2 object-contain" />
+              <img key={k.src} src={k.src} alt={`GMK nuSignal ${k.name.toLowerCase()} render`} width={1600} height={1600} className="h-auto w-full" />
             ))}
           </div>
         </noscript>
