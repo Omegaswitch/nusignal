@@ -3,14 +3,11 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-type Ripple = { x: number; y: number; r: number; life: number };
-type Particle = { x: number; y: number; vx: number; vy: number; life: number };
-
 const BG = "#050608";
 const COLORS = ["#1f6fe0", "#3b8bff", "#0b3ea8"];
 
 /**
- * AetherRibbonMesh — sine ribbon mesh with mouse deflection and click ripples.
+ * AetherRibbonMesh — ambient sine ribbon mesh (no pointer interaction).
  * Fills its (positioned) parent; sizes from the parent via ResizeObserver.
  */
 export function AetherRibbonMesh({
@@ -28,10 +25,6 @@ export function AetherRibbonMesh({
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = mq.matches;
     let w = 0, h = 0, raf = 0, visible = true, t = 0, last = 0;
-    let rect = canvas.getBoundingClientRect();
-    const mouse = { x: -9999, y: -9999, active: false };
-    const ripples: Ripple[] = [];
-    const particles: Particle[] = [];
 
     const draw = () => {
       ctx.fillStyle = BG;
@@ -44,17 +37,8 @@ export function AetherRibbonMesh({
         const freq = 0.004 + 0.0015 * Math.cos(i);
         ctx.beginPath();
         for (let x = -step; x <= w + step; x += step) {
-          let y = baseY + Math.sin(x * freq + t * (0.6 + p * 0.5) + i) * amp
+          const y = baseY + Math.sin(x * freq + t * (0.6 + p * 0.5) + i) * amp
             + Math.sin(x * freq * 2.3 - t * 0.4 + i * 0.5) * amp * 0.35;
-          if (mouse.active) {
-            const dx = x - mouse.x, dy = y - mouse.y;
-            const d2 = dx * dx + dy * dy;
-            y += (dy >= 0 ? 1 : -1) * 60 * Math.exp(-d2 / 18000);
-          }
-          for (const r of ripples) {
-            const d = Math.hypot(x - r.x, y - r.y);
-            y += Math.sin((d - r.r) * 0.05) * 14 * r.life * Math.exp(-Math.abs(d - r.r) / 50);
-          }
           if (x === -step) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.strokeStyle = COLORS[i % COLORS.length];
@@ -64,10 +48,6 @@ export function AetherRibbonMesh({
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      for (const pt of particles) {
-        ctx.fillStyle = `rgba(59,139,255,${pt.life})`;
-        ctx.fillRect(pt.x, pt.y, 2, 2);
-      }
     };
 
     const tick = (now: number) => {
@@ -76,14 +56,6 @@ export function AetherRibbonMesh({
       if (now - last < 24) return;
       last = now;
       t += 0.012;
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        const r = ripples[i]; r.r += 6; r.life -= 0.012;
-        if (r.life <= 0) ripples.splice(i, 1);
-      }
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vx *= 0.97; p.vy *= 0.97; p.life -= 0.015;
-        if (p.life <= 0) particles.splice(i, 1);
-      }
       draw();
     };
     const start = () => { if (!reduced && visible && !raf) raf = requestAnimationFrame(tick); };
@@ -92,27 +64,10 @@ export function AetherRibbonMesh({
     const resize = () => {
       const pr = parent.getBoundingClientRect();
       w = pr.width; h = pr.height;
-      rect = canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw();
-    };
-
-    const local = (e: PointerEvent) => {
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    };
-    const onMove = (e: PointerEvent) => { Object.assign(mouse, local(e), { active: true }); };
-    const onLeave = () => { mouse.active = false; };
-    const onDown = (e: PointerEvent) => {
-      if (reduced) return;
-      const { x, y } = local(e);
-      ripples.push({ x, y, r: 0, life: 1 });
-      // cap so rapid clicking cannot pile up thousands of particles
-      for (let i = 0; i < 24 && particles.length < 200; i++) {
-        const a = (i / 24) * Math.PI * 2, s = 1.5 + Math.random() * 3;
-        particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1 });
-      }
     };
 
     const ro = new ResizeObserver(resize);
@@ -122,24 +77,14 @@ export function AetherRibbonMesh({
       if (visible) start(); else stop();
     });
     io.observe(canvas);
-    // cached rect instead of a layout read on every pointermove
-    const onScroll = () => { rect = canvas.getBoundingClientRect(); };
     const onMotion = () => { reduced = mq.matches; if (reduced) stop(); else start(); };
-    window.addEventListener("scroll", onScroll, { passive: true });
     mq.addEventListener("change", onMotion);
-    parent.addEventListener("pointermove", onMove);
-    parent.addEventListener("pointerleave", onLeave);
-    parent.addEventListener("pointerdown", onDown);
     resize();
     start();
 
     return () => {
       stop(); ro.disconnect(); io.disconnect();
-      window.removeEventListener("scroll", onScroll);
       mq.removeEventListener("change", onMotion);
-      parent.removeEventListener("pointermove", onMove);
-      parent.removeEventListener("pointerleave", onLeave);
-      parent.removeEventListener("pointerdown", onDown);
     };
   }, [ribbons]);
 

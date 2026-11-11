@@ -3,45 +3,58 @@
 import { useEffect, useRef } from "react";
 
 import { GMK_PATHS, WORD_PATHS } from "@/components/brand/nusignal-logo";
+import Hero from "@/components/sections/hero";
 
 /*
- * Scroll-driven "signal loss -> reacquire" sequence.
- * Everything visual is drawn on one canvas; HUD text is DOM updated via refs
- * (no React re-renders on scroll). The wordmark reuses the logo's SVG paths via Path2D.
+ * Scroll-driven "signal loss -> reacquire" sequence on a sticky stage.
+ * The hero is the bottom layer: at scroll 0 the canvas is empty and the hero shows as-is.
+ * As you scroll, the canvas takes over the hero logo at the same rect and glitches it out,
+ * then NO SIGNAL, then the kits lock in. DOM is updated via refs (no React re-renders on scroll).
  */
 
 const KITS = [
-  { src: "/images/kit-base.webp", name: "BASE KIT", code: "CH-01", keys: "000 KEYS" },
-  { src: "/images/kit-novelties.webp", name: "NOVELTIES", code: "CH-02", keys: "00 KEYS" },
+  { src: "/images/kit-base.webp", name: "BASE KIT" },
+  { src: "/images/kit-novelties.webp", name: "NOVELTIES" },
 ];
 
-// phase boundaries in section progress (0..1)
-const LOGO_END = 0.3;
-const STATIC_END = 0.38;
-const KIT_SPAN = (1 - STATIC_END) / KITS.length;
+// section progress (0..1). Snap anchors sit on clean rest states: hero, base kit locked, novelties locked.
+// NO SIGNAL plays during the first move instead of being its own stop.
+const ANCHORS = [0, 0.5, 1];
+const LOGO_END = 0.22;   // hero logo loses signal
+const STATIC_END = 0.3;  // static flash, then NO SIGNAL
+const KIT_START = [0.3, 0.56];
+const KIT_LOCKED = [0.46, 0.9]; // each anchor sits in its kit's locked hold
+const KIT_FADE = 0.04;   // glitch-out before the next kit
+const SCROLL_SVH = 200;  // scroll distance; the section is this plus one stage tall
+const K = 6;             // display progress easing rate (1/s)
+const VMAX = 0.5;        // display progress speed cap (1/s): about one phase per second
+const MAX_LEVEL = 8;     // largest mosaic block: 2^8 device px
+const VOID = "#050608";
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
-
-function rand(seed: number) {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
+const smooth = (a: number, b: number, v: number) => {
+  const x = clamp((v - a) / (b - a));
+  return x * x * (3 - 2 * x);
+};
+// smooth noise in -1..1: incommensurate sines drift instead of jumping per random seed
+const sn = (t: number, s = 0) =>
+  (Math.sin(t * 1.7 + s) + 0.6 * Math.sin(t * 2.9 + s * 1.3) + 0.3 * Math.sin(t * 5.3 + s * 2.1)) / 1.9;
 
 export default function SignalLoss() {
   const sectionRef = useRef<HTMLElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
-  const hudTop = useRef<HTMLSpanElement>(null);
-  const hudCode = useRef<HTMLSpanElement>(null);
-  const hudStatus = useRef<HTMLSpanElement>(null);
-  const hudKeys = useRef<HTMLSpanElement>(null);
-  const barsRef = useRef<HTMLDivElement>(null);
+  const acquiringRef = useRef<HTMLSpanElement>(null);
   const noSignalRef = useRef<HTMLDivElement>(null);
   const headRefs = useRef<(HTMLHeadingElement | null)[]>([]);
 
   useEffect(() => {
     const section = sectionRef.current!;
+    const stage = stageRef.current!;
+    const heroWrap = heroRef.current!;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -49,70 +62,67 @@ export default function SignalLoss() {
     const onMotion = () => { reduced = mq.matches; dirty = true; schedule(); };
     mq.addEventListener("change", onMotion);
 
-    const buf = document.createElement("canvas"); // full-res composed source
+    // hero parts, found by structure so hero.tsx stays a plain section
+    const logoBox = heroWrap.querySelector<HTMLElement>("[data-hero-logo]")!;
+    const logoEl = logoBox.querySelector<HTMLElement>("[role=img]") ?? logoBox;
+    const column = logoBox.parentElement!;
+    // chrome drops out with the signal; the ribbon mesh and its vignette stay as background a little longer
+    const chrome = [...(heroWrap.firstElementChild?.children ?? []), ...column.children].filter(
+      (el) => el !== column && el !== logoBox && !/^(STYLE|H1)$/.test(el.tagName)
+        && !el.querySelector("canvas") && !(el.getAttribute("class") ?? "").includes("gradient"),
+    ) as HTMLElement[];
+
+    const buf = document.createElement("canvas"); // full-res source: logo or kit
     const bctx = buf.getContext("2d")!;
-    const tiny = document.createElement("canvas"); // downsample target
-    const tctx = tiny.getContext("2d")!;
-    const scratch = document.createElement("canvas"); // slice source, so the canvas never draws onto itself
+    const scratch = document.createElement("canvas");
     const sctx = scratch.getContext("2d")!;
     const gmk = GMK_PATHS.map((d) => new Path2D(d));
     const word = WORD_PATHS.map((d) => new Path2D(d));
 
-    // a few pre-rendered noise tiles; per-cell fills over the whole canvas cost too much per frame
+    // fine grain: a few pre-rendered 1px noise tiles, offset randomly per frame
     const TILE = 128;
-    const tiles = [0, 1, 2, 3].map((v) => {
+    const tiles = [0, 1, 2, 3].map(() => {
       const c = document.createElement("canvas");
       c.width = c.height = TILE;
       const x = c.getContext("2d")!;
-      for (let y = 0; y < TILE; y += 3) {
-        for (let xx = 0; xx < TILE; xx += 3) {
-          const r = rand(v * 977 + xx * 0.37 + y * 13.13);
-          if (r > 0.6) continue;
-          const g = Math.floor(rand(r * 91 + v) * 200);
-          x.fillStyle = `rgb(${g * 0.5},${g * 0.7},${g})`;
-          x.fillRect(xx, y, 3, 3);
-        }
+      const im = x.createImageData(TILE, TILE);
+      for (let i = 0; i < im.data.length; i += 4) {
+        if (Math.random() > 0.45) continue;
+        const g = Math.random() * 255;
+        im.data[i] = g * 0.55; im.data[i + 1] = g * 0.75; im.data[i + 2] = g; im.data[i + 3] = 255;
       }
+      x.putImageData(im, 0, 0);
       return ctx.createPattern(c, "repeat")!;
     });
+    let lines: CanvasPattern | null = null;
+    let lineStep = 3;
 
-    // kit images load only once the section is about a viewport away
-    let imgs: HTMLImageElement[] = [];
-    const near = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return;
-      near.disconnect();
-      imgs = KITS.map((k) => {
-        const im = new Image();
-        im.decoding = "async";
-        im.onload = () => { dirty = true; schedule(); };
-        im.src = k.src;
-        return im;
-      });
-    }, { rootMargin: "100% 0px" });
-    near.observe(section);
+    const imgs = KITS.map((k) => {
+      const im = new Image();
+      im.decoding = "async";
+      im.onload = () => { dirty = true; schedule(); };
+      im.src = k.src;
+      return im;
+    });
+    const loaded = (i: number) => imgs[i].complete && !!imgs[i].naturalWidth;
 
     let W = 0, H = 0, dpr = 1;
     let box = { x: 0, y: 0, s: 0 };
+    let logo = { x: 0, y: 0, w: 0 };
+    let logoStale = true;
     let dirty = true;
-    let raf = 0;
-    let visible = false;
-    let lastKey = "";
-    let lastT = 0, lastP = -1;
-    const setText = (el: HTMLElement | null, v: string) => { if (el && el.textContent !== v) el.textContent = v; };
-    const setOp = (el: HTMLElement | null, v: string) => { if (el && el.style.opacity !== v) el.style.opacity = v; };
+    let raf = 0, visible = false, lastT = 0;
+    let dp = -1, drawnP = -1, wasAnimating = false;
+    const set = (el: HTMLElement | null, prop: "opacity" | "visibility" | "pointerEvents" | "transform", v: string) => {
+      if (el && el.style[prop] !== v) el.style[prop] = v;
+    };
 
     function resize() {
-      // mobile URL bar show/hide only nudges the height; re-laying out would flash the canvas
-      if (W && window.innerWidth === W && Math.abs(window.innerHeight - H) < 80) return;
+      W = stage.clientWidth;
+      H = stage.clientHeight;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      W = window.innerWidth;
-      H = window.innerHeight;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
-      buf.width = canvas.width;
-      buf.height = canvas.height;
-      scratch.width = canvas.width;
-      scratch.height = canvas.height;
+      canvas.width = buf.width = scratch.width = Math.round(W * dpr);
+      canvas.height = buf.height = scratch.height = Math.round(H * dpr);
       const s = Math.min(W - 32, H - (W < 640 ? 200 : 220));
       box = { x: (W - s) / 2, y: (H - s) / 2 + (W < 640 ? 10 : 0), s };
       const f = frameRef.current!;
@@ -120,53 +130,111 @@ export default function SignalLoss() {
       f.style.top = box.y + "px";
       f.style.width = s + "px";
       f.style.height = s + "px";
+      lineStep = Math.max(2, Math.round(3 * dpr));
+      const lc = document.createElement("canvas");
+      lc.width = 1;
+      lc.height = lineStep;
+      const lx = lc.getContext("2d")!;
+      lx.fillStyle = "#000";
+      lx.fillRect(0, 0, 1, Math.max(1, Math.round(dpr)));
+      lines = ctx.createPattern(lc, "repeat");
+      srcKey = "";
+      logoStale = true;
       dirty = true;
     }
 
     function progress() {
       const r = section.getBoundingClientRect();
-      const total = r.height - window.innerHeight;
-      return clamp(-r.top / total);
+      return clamp(-r.top / (r.height - stage.offsetHeight));
     }
 
-    // draw source (logo or kit) at full res into buf
+    // ---- source image + box-filtered pyramid: level k is the source in 2^k px blocks, cached per source
+    const lv: HTMLCanvasElement[] = [buf];
+    let built = 0, srcKey = "", srcGen = 0;
+    function source(key: string, draw: (c: CanvasRenderingContext2D) => void) {
+      if (key === srcKey) return;
+      bctx.clearRect(0, 0, buf.width, buf.height);
+      draw(bctx);
+      srcKey = key;
+      srcGen++;
+      built = 0;
+    }
+    function level(k: number) {
+      for (; built < k; built++) {
+        const prev = lv[built];
+        const c = (lv[built + 1] ??= document.createElement("canvas"));
+        const x = c.getContext("2d")!;
+        const w = Math.ceil(prev.width / 2), h = Math.ceil(prev.height / 2);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } else x.clearRect(0, 0, w, h);
+        x.imageSmoothingEnabled = true;
+        x.drawImage(prev, 0, 0, prev.width / 2, prev.height / 2);
+      }
+      return lv[k];
+    }
+
+    // chromatic aberration ghosts: the source tinted in nuSignal blue and cyan-white, at >= half res
+    const tints = ["#2f7bff", "#bfefff"].map((color) => {
+      const c = document.createElement("canvas");
+      return { c, x: c.getContext("2d")!, color };
+    });
+    let tintKey = "";
+    function ghosts(k: number) {
+      const key = `${srcGen}:${k}`;
+      if (key === tintKey) return;
+      tintKey = key;
+      const src = level(k);
+      for (const g of tints) {
+        if (g.c.width !== src.width || g.c.height !== src.height) { g.c.width = src.width; g.c.height = src.height; }
+        g.x.globalCompositeOperation = "copy";
+        g.x.drawImage(src, 0, 0);
+        g.x.globalCompositeOperation = "multiply"; // keeps black black, so the void never hazes
+        g.x.fillStyle = g.color;
+        g.x.fillRect(0, 0, src.width, src.height);
+        g.x.globalCompositeOperation = "destination-in";
+        g.x.drawImage(src, 0, 0);
+      }
+    }
+
     function drawLogo(c: CanvasRenderingContext2D) {
-      const w = buf.width, h = buf.height;
-      c.fillStyle = "#050608";
-      c.fillRect(0, 0, w, h);
-      // same geometry as <NuSignalLogo> (viewBox 456x156), centred at ~70vw like the hero
-      const k = Math.min((w * (W < 640 ? 0.92 : 0.7)) / 456, (h * 0.5) / 156);
-      c.save();
-      c.translate((w - 456 * k) / 2, (h - 156 * k) / 2);
-      c.scale(k, k);
-      c.lineCap = "round";
-      c.lineJoin = "round";
+      if (logoStale) {
+        // relative to the hero wrapper, so its offscreen transform does not matter
+        const r = logoEl.getBoundingClientRect(), o = heroWrap.getBoundingClientRect();
+        logo = { x: r.left - o.left, y: r.top - o.top + (r.height - (r.width * 156) / 456) / 2, w: r.width };
+        logoStale = false;
+      }
+      // same geometry as <NuSignalLogo> (viewBox 456x156), drawn into the DOM logo's rect
+      const k = (logo.w / 456) * dpr;
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.globalCompositeOperation = "source-over";
+      sctx.clearRect(0, 0, scratch.width, scratch.height);
+      sctx.lineCap = "round";
+      sctx.lineJoin = "round";
       const stroke = (paths: Path2D[], color: string, lw: number) => {
-        c.strokeStyle = color;
-        c.lineWidth = lw;
-        paths.forEach((d) => c.stroke(d));
+        sctx.strokeStyle = color;
+        sctx.lineWidth = lw;
+        paths.forEach((d) => sctx.stroke(d));
       };
-      c.save();
-      c.translate(108, 14);
-      c.scale(0.85, 0.85);
+      sctx.setTransform(k * 0.85, 0, 0, k * 0.85, logo.x * dpr + 108 * k, logo.y * dpr + 14 * k);
       stroke(gmk, "#3b8bff", 3.6);
-      c.restore();
-      c.translate(6, 52);
+      sctx.setTransform(k, 0, 0, k, logo.x * dpr + 6 * k, logo.y * dpr + 52 * k);
       stroke(word, "#e8eefb", 9);
-      c.restore();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      // one shadow for the whole mark, matching the DOM logo's drop-shadow
+      c.shadowColor = "rgba(31,111,224,0.35)";
+      c.shadowBlur = 24 * dpr;
+      c.drawImage(scratch, 0, 0);
+      c.shadowColor = "transparent";
+      c.shadowBlur = 0;
     }
 
-    const loaded = (i: number) => !!imgs[i]?.complete && !!imgs[i].naturalWidth;
-
-    // returns false while the image is still loading (skeleton drawn instead)
     function drawKit(c: CanvasRenderingContext2D, i: number, t: number) {
       const w = buf.width, h = buf.height;
-      c.fillStyle = "#050608";
+      c.fillStyle = VOID;
       c.fillRect(0, 0, w, h);
       const x = box.x * dpr, y = box.y * dpr, s = box.s * dpr;
       if (loaded(i)) {
         c.drawImage(imgs[i], x, y, s, s);
-        return true;
+        return;
       }
       // skeleton: dim panel with a scanning band, so the frame is never an empty box
       c.fillStyle = "#0a0f1a";
@@ -184,189 +252,194 @@ export default function SignalLoss() {
       c.fillStyle = g;
       c.fillRect(x, by, s, bh);
       c.restore();
-      return false;
     }
 
-    // pixelate buf -> ctx, with optional rgb split + slice glitch
-    function present(block: number, split: number, slices: number, t: number, alpha: number) {
+    // source -> ctx with mosaic (crossfaded between two pyramid levels), aberration and slices
+    function present(o: { block: number; ab: number; slices: number; burst: number; alpha: number; t: number }) {
       const w = canvas.width, h = canvas.height;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "#050608";
-      ctx.fillRect(0, 0, w, h);
-      let src: HTMLCanvasElement = buf;
-      const b = Math.max(1, block * dpr);
-      if (b > 1.5) {
-        const tw = Math.max(1, Math.round(w / b)), th = Math.max(1, Math.round(h / b));
-        // assigning width clears and reallocates the canvas even when unchanged
-        if (tiny.width !== tw) tiny.width = tw;
-        if (tiny.height !== th) tiny.height = th;
-        tctx.imageSmoothingEnabled = true;
-        tctx.drawImage(buf, 0, 0, tiny.width, tiny.height);
-        src = tiny;
+      const lf = Math.log2(clamp(o.block * dpr, 1, 2 ** MAX_LEVEL));
+      const k0 = Math.floor(lf), f = lf - k0;
+      const blit = (c: HTMLCanvasElement, k: number, dx = 0, dy = 0) =>
+        ctx.drawImage(c, dx, dy, c.width * 2 ** k, c.height * 2 ** k);
+      const d = o.ab * dpr;
+      // aberration takes its share from the main image, so the frame does not brighten while it is on
+      const a = d > 0.4 ? Math.min(0.6, o.ab / 10) : 0;
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = o.alpha * (1 - a);
+      blit(level(k0), k0);
+      if (f > 0.01) {
+        ctx.globalAlpha = o.alpha * (1 - a) * f;
+        blit(level(k0 + 1), k0 + 1);
       }
-      ctx.imageSmoothingEnabled = src === buf;
-      ctx.globalAlpha = alpha;
-      const draw = (dx: number) => ctx.drawImage(src, 0, 0, src.width, src.height, dx, 0, w, h);
-
-      if (split > 0.5) {
+      if (a > 0) {
+        const gk = Math.max(1, k0);
+        ghosts(gk);
+        ctx.imageSmoothingEnabled = gk === 1; // soft fringe while near crisp, blocky once the mosaic is coarse
         ctx.globalCompositeOperation = "lighter";
-        ctx.globalAlpha = alpha * 0.3; // three additive passes sum to ~1 so whites do not blow out
-        draw(-split * dpr);
-        draw(split * dpr);
-        ctx.globalAlpha = alpha * 0.4;
-        draw(0);
+        ctx.globalAlpha = o.alpha * a;
+        blit(tints[0].c, gk, -d, d * 0.12);
+        blit(tints[1].c, gk, d, -d * 0.12);
         ctx.globalCompositeOperation = "source-over";
-      } else {
-        draw(0);
       }
       ctx.globalAlpha = 1;
 
-      // horizontal slice displacement: shift bands copied from a snapshot of the canvas
-      if (slices > 0.01) {
+      // thin horizontal bands displaced by smooth noise, copied from a snapshot so the canvas never draws onto itself
+      if (o.slices > 0.02 || o.burst > 0.02) {
         sctx.globalCompositeOperation = "copy";
         sctx.drawImage(canvas, 0, 0);
-        const n = Math.round(3 + slices * 9);
-        const seed = Math.floor(t * 12);
+        sctx.globalCompositeOperation = "source-over";
+        const n = 2 + Math.round(o.slices * 2 + o.burst * 3);
         for (let k = 0; k < n; k++) {
-          const y = rand(seed + k * 3.1) * h;
-          const sh = (4 + rand(seed + k * 7.7) * 40) * dpr * (0.4 + slices);
-          const dx = (rand(seed + k * 1.9) - 0.5) * 120 * dpr * slices;
+          const y = (0.5 + 0.5 * sn(o.t * 0.3, k * 7.3)) * h;
+          const sh = (2 + (0.5 + 0.5 * sn(o.t * 0.8, k * 3.1)) * (5 + o.burst * 26)) * dpr;
+          const dx = sn(o.t * 2.3, k * 5.7) * (o.slices * 22 + o.burst * 90) * dpr;
+          ctx.clearRect(0, y, w, sh);
           ctx.drawImage(scratch, 0, y, w, sh, dx, y, w, sh);
         }
       }
     }
 
-    function scanlines(strength: number) {
-      if (strength <= 0) return;
-      const w = canvas.width, h = canvas.height;
-      ctx.fillStyle = `rgba(0,0,0,${0.35 * strength})`;
-      const step = Math.max(2, Math.round(3 * dpr));
-      for (let y = 0; y < h; y += step) ctx.fillRect(0, y, w, Math.max(1, dpr));
+    // subtle scanlines with a slow vertical roll and a soft flicker
+    function scanlines(s: number, t: number) {
+      if (s <= 0.01 || !lines) return;
+      ctx.save();
+      ctx.globalAlpha = s * (0.2 + 0.04 * sn(t * 11, 4));
+      ctx.translate(0, (t * 14 * dpr) % lineStep);
+      ctx.fillStyle = lines;
+      ctx.fillRect(0, -lineStep, canvas.width, canvas.height + lineStep);
+      ctx.restore();
     }
 
-    function noise(amount: number, t: number) {
-      if (amount <= 0) return;
-      const seed = Math.floor(t * 30);
-      const ox = Math.floor(rand(seed) * TILE), oy = Math.floor(rand(seed + 0.5) * TILE);
+    function grain(a: number) {
+      if (a <= 0.005) return;
+      const ox = Math.floor(Math.random() * TILE), oy = Math.floor(Math.random() * TILE);
       ctx.save();
-      ctx.globalAlpha = Math.min(1, amount * 2.5);
-      ctx.fillStyle = tiles[seed % tiles.length];
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.fillStyle = tiles[Math.floor(Math.random() * tiles.length)];
       ctx.translate(-ox, -oy);
       ctx.fillRect(0, 0, canvas.width + TILE, canvas.height + TILE);
       ctx.restore();
     }
 
-    function setBars(level: number) {
-      const bars = barsRef.current!.children;
-      for (let i = 0; i < bars.length; i++) {
-        setOp(bars[i] as HTMLElement, i < level ? "1" : "0.15");
-      }
+    // hero layer: chrome glitches out first, the background fades as the signal goes
+    function heroState(q: number, t: number) {
+      const bg = 1 - smooth(0.55, 1, q);
+      set(heroWrap, "opacity", String(bg));
+      // opacity alone would leave the ribbon mesh running; out of the clipped stage its IntersectionObserver pauses it
+      set(heroWrap, "transform", bg <= 0 ? "translateY(-200%)" : "");
+      set(logoEl, "opacity", dp > 0 ? "0" : ""); // the canvas draws it from here on
+      const cf = 1 - smooth(0, 0.35, q);
+      chrome.forEach((el, i) => {
+        const flick = reduced || cf >= 1 ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * sn(t * 9, i * 2.7));
+        set(el, "opacity", cf >= 1 ? "" : String(cf * flick));
+        set(el, "visibility", cf <= 0 ? "hidden" : "");
+        set(el, "pointerEvents", cf < 0.5 ? "none" : "");
+      });
     }
 
-    function render(now: number) {
-      const t = now / 1000;
-      const p = progress();
-      const f = frameRef.current!;
+    function render(t: number) {
+      const p = dp;
       const ns = noSignalRef.current!;
+      const f = frameRef.current!;
       let animating = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (p < LOGO_END) {
-        // ---- phase 1: signal loss
-        const q = clamp(p / LOGO_END);
-        const g = reduced ? 0 : ease(clamp((q - 0.1) / 0.9));
-        const key = `L${q.toFixed(3)}`;
-        if (dirty || key !== lastKey || (g > 0.05 && !reduced)) {
-          drawLogo(bctx);
-          const block = reduced ? 1 : 1 + Math.pow(g, 1.6) * 60;
-          const jitter = g > 0.05 ? rand(Math.floor(t * 10)) : 0;
-          present(block, g * 14 * (0.6 + jitter), g, t, reduced ? 1 - q : 1);
-          scanlines(g);
-          if (g > 0.85) noise((g - 0.85) * 0.25, t); // light: the big flash comes next
-          animating = g > 0.05 && !reduced;
+        // ---- phase 1: the hero logo loses signal over a transparent canvas
+        const q = p / LOGO_END;
+        heroState(q, t);
+        if (p > 0) {
+          source("logo", drawLogo);
+          const g = reduced ? 0 : smooth(0.08, 1, q);
+          // sharper bursts only near the end of the loss
+          const burst = reduced ? 0 : smooth(0.7, 1, q) * Math.max(0, sn(t * 3.1, 9)) ** 4;
+          present({
+            block: 1 + g ** 1.6 * 60,
+            ab: g * 12 * (0.65 + 0.35 * sn(t * 1.1, 2)) + burst * 8,
+            slices: g * g,
+            burst,
+            alpha: 1 - (reduced ? q : smooth(0.88, 1, q)),
+            t,
+          });
+          scanlines(g, t);
+          grain(g * 0.1);
+          animating = !reduced;
         }
-        setOp(f, "0");
-        setOp(ns, "0");
-        headRefs.current.forEach((h) => setOp(h, "0"));
-        setBars(Math.max(0, 5 - Math.floor(q * 6)));
-        setText(hudTop.current, "CH-00 // CARRIER");
-        setText(hudStatus.current, q < 0.15 ? "SIGNAL OK" : q < 0.85 ? "SIGNAL DEGRADED" : "SIGNAL LOST");
-        setText(hudCode.current, `${Math.round((1 - q) * 100)
-          .toString()
-          .padStart(3, "0")}%`);
-        setText(hudKeys.current, "");
-        lastKey = key;
+        set(ns, "opacity", "0");
+        set(f, "opacity", "0");
+        headRefs.current.forEach((h) => set(h, "opacity", "0"));
       } else if (p < STATIC_END) {
-        // ---- static flash then black + NO SIGNAL
+        // ---- static flash, then NO SIGNAL
         const q = (p - LOGO_END) / (STATIC_END - LOGO_END);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.fillStyle = "#050608";
+        heroState(1, t);
+        ctx.fillStyle = VOID;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (!reduced && q < 0.4) {
-          noise(0.6 - q * 1.4, t);
-          scanlines(1);
-          animating = true;
+        if (!reduced) {
+          const s = 1 - smooth(0, 0.6, q);
+          grain(0.5 * s);
+          scanlines(s, t);
+          animating = s > 0;
         }
-        setOp(f, "0");
-        headRefs.current.forEach((h) => setOp(h, "0"));
-        setOp(ns, q > 0.25 ? "1" : "0");
-        setBars(0);
-        setText(hudTop.current, "CH-00 // CARRIER");
-        setText(hudStatus.current, "NO CARRIER");
-        setText(hudCode.current, "000%");
-        setText(hudKeys.current, "");
-        lastKey = "S";
+        set(ns, "opacity", String(smooth(0.3, 0.6, q)));
+        set(f, "opacity", "0");
+        headRefs.current.forEach((h) => set(h, "opacity", "0"));
       } else {
-        // ---- phase 2: reacquire kits
-        const kp = (p - STATIC_END) / KIT_SPAN;
-        const i = Math.min(KITS.length - 1, Math.floor(kp));
-        const local = clamp(kp - i); // 0..1 within this kit
-        const lock = clamp(local / 0.6); // lock during first 60%, then hold
-        const g = reduced ? 0 : 1 - ease(lock);
-        const fadeIn = clamp(local / 0.08);
-        const fadeOut = i < KITS.length - 1 ? 1 - clamp((local - 0.9) / 0.1) : 1;
-        const alpha = reduced ? Math.min(fadeIn, fadeOut) : 1;
+        // ---- kits resolve: blocks refine, aberration converges to zero, grain fades
+        heroState(1, t);
+        const i = p < KIT_START[1] ? 0 : 1;
+        const lock = clamp((p - KIT_START[i]) / (KIT_LOCKED[i] - KIT_START[i]));
+        const next = KIT_START[i + 1];
+        const out = next ? smooth(next - KIT_FADE, next, p) : 0;
+        const g = reduced ? 0 : Math.max(1 - ease(lock), out);
+        const vis = smooth(0, 0.15, lock) * (1 - out);
         const ready = loaded(i);
-        const key = `K${i}${ready}${local.toFixed(3)}`;
-        if (dirty || key !== lastKey || !ready || (g > 0.02 && !reduced)) {
-          drawKit(bctx, i, t);
-          const block = 1 + Math.pow(g, 1.4) * (box.s / 10);
-          present(block, g * 10, g * 0.8, t, alpha);
-          scanlines(0.25 + g * 0.6);
-          if (!reduced && fadeOut < 1) noise((1 - fadeOut) * 0.5, t);
-          animating = !ready || (g > 0.02 && !reduced);
-        }
-        const pct = Math.round(lock * 100);
-        setOp(f, String(Math.min(fadeIn, fadeOut)));
-        setOp(ns, "0");
-        setBars(Math.round(lock * 5));
-        setText(hudTop.current, `${KITS[i].code} // ${KITS[i].name}`);
-        setText(hudStatus.current, !ready ? "ACQUIRING…" : pct >= 100 ? "LOCKED" : `LOCKING… ${pct}%`);
-        setText(hudCode.current, `${pct.toString().padStart(3, "0")}%`);
-        setText(hudKeys.current, KITS[i].keys);
-        headRefs.current.forEach((h, j) => setOp(h, j === i ? String(Math.min(fadeIn, fadeOut)) : "0"));
-        lastKey = key;
+        source(ready ? `kit${i}` : `skel${t}`, (c) => drawKit(c, i, t));
+        present({
+          block: 1 + g ** 1.5 * (box.s / 10),
+          ab: g * 12 * (0.7 + 0.3 * sn(t * 1.3, i)),
+          slices: g * g * 0.6,
+          burst: 0,
+          alpha: vis,
+          t,
+        });
+        scanlines(0.15 + 0.5 * g, t);
+        grain(g * 0.14);
+        animating = !ready || g > 0;
+        set(ns, "opacity", i === 0 ? String(1 - smooth(0, 0.4, lock)) : "0");
+        set(f, "opacity", String(vis));
+        set(acquiringRef.current, "opacity", ready ? "0" : "1");
+        headRefs.current.forEach((h, j) => set(h, "opacity", j === i ? String(vis) : "0"));
       }
-      dirty = false;
       return animating;
     }
 
     function frame(now: number) {
       raf = 0;
-      // ~30fps cap for the time-driven glitch; scroll changes still draw immediately
-      const p = progress();
-      if (!dirty && p === lastP && now - lastT < 33) {
-        if (visible) raf = requestAnimationFrame(frame);
-        return;
+      const target = progress();
+      // eased display progress, frame-rate independent, so snaps and free scrolling both animate fluidly
+      if (dp < 0 || reduced) dp = target;
+      else {
+        const dt = Math.min(0.1, (now - lastT) / 1000);
+        // a snap moves the scroll a whole screen in ~0.1s; capping the speed lets the glitch play out instead of flashing by
+        dp += clamp((target - dp) * (1 - Math.exp(-dt * K)), -VMAX * dt, VMAX * dt);
+        if (Math.abs(target - dp) < 1e-4) dp = target;
       }
-      lastP = p;
       lastT = now;
-      const animating = render(now);
-      // keep looping only while glitch is live and the section is on screen
-      if (animating && visible) raf = requestAnimationFrame(frame);
+      let animating = false;
+      if (dirty || dp !== drawnP || wasAnimating) {
+        animating = render(now / 1000);
+        drawnP = dp;
+        dirty = false;
+      }
+      wasAnimating = animating;
+      // run while easing or glitching; stop when settled
+      if (visible && (animating || dp !== target)) raf = requestAnimationFrame(frame);
     }
     function schedule() {
-      if (!raf && visible) raf = requestAnimationFrame(frame);
+      if (raf || !visible) return;
+      lastT = performance.now();
+      raf = requestAnimationFrame(frame);
     }
 
     const io = new IntersectionObserver(([e]) => {
@@ -374,20 +447,21 @@ export default function SignalLoss() {
       if (visible) { dirty = true; schedule(); }
     });
     io.observe(section);
-
-    const onResize = () => { resize(); schedule(); };
-    resize();
+    // stage resizes rebuild everything; hero layout shifts (e.g. font swap) only move the logo
+    const ro = new ResizeObserver(() => { resize(); schedule(); });
+    ro.observe(stage);
+    const lro = new ResizeObserver(() => { logoStale = true; srcKey = ""; dirty = true; schedule(); });
+    lro.observe(column); // the logo is centred in this column, so its size changes move the logo
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", onResize);
     return () => {
       visible = false;
       io.disconnect();
-      near.disconnect();
+      ro.disconnect();
+      lro.disconnect();
       mq.removeEventListener("change", onMotion);
       imgs.forEach((im) => { im.onload = null; });
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", onResize);
     };
   }, []);
 
@@ -397,10 +471,21 @@ export default function SignalLoss() {
       ref={sectionRef}
       id="signal-loss"
       aria-label="Signal loss and kit reveal"
-      className="relative h-[380vh] bg-void"
+      className="relative bg-void"
+      style={{ height: `calc(${SCROLL_SVH}svh + 100svh)` }}
     >
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
+      {/* snap rest points; 1px tall so the snap never allows free scroll between phases */}
+      {ANCHORS.map((a) => (
+        <div key={a} aria-hidden className="absolute inset-x-0 h-px snap-start snap-always" style={{ top: `${a * SCROLL_SVH}svh` }} />
+      ))}
+
+      <div ref={stageRef} className="sticky top-0 h-svh w-full overflow-hidden">
+        {/* isolate: the hero's z-10 children must stay under the canvas */}
+        <div ref={heroRef} className="absolute inset-0 isolate">
+          <Hero />
+        </div>
+
+        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
 
         {/* no-JS fallback; JS users get the canvas and never download these eagerly */}
         <noscript>
@@ -427,7 +512,7 @@ export default function SignalLoss() {
         </div>
 
         {/* scope frame around the kit render */}
-        <div ref={frameRef} className="pointer-events-none absolute opacity-0 transition-opacity duration-300">
+        <div ref={frameRef} className="pointer-events-none absolute opacity-0">
           <div className="absolute inset-0 border border-signal/25" />
           <span className={`${corner} -left-2 -top-2 border-l-2 border-t-2`} />
           <span className={`${corner} -right-2 -top-2 border-r-2 border-t-2`} />
@@ -435,26 +520,9 @@ export default function SignalLoss() {
           <span className={`${corner} -bottom-2 -right-2 border-b-2 border-r-2`} />
           <span className="absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-signal-bright/60" />
           <span className="absolute left-1/2 top-1/2 h-px w-3 -translate-x-1/2 -translate-y-1/2 bg-signal-bright/60" />
-        </div>
-
-        {/* HUD */}
-        <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-signal sm:inset-x-8 sm:top-8 sm:text-xs">
-          <div className="flex flex-col gap-1">
-            <span ref={hudTop}>CH-00 // CARRIER</span>
-            <span ref={hudKeys} className="text-mute" />
-          </div>
-          <div className="flex items-end gap-3">
-            <span ref={hudCode} className="text-mute">100%</span>
-            <div ref={barsRef} className="flex h-4 items-end gap-[3px]" aria-hidden>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <span key={n} className="w-[3px] bg-signal-bright transition-opacity duration-150" style={{ height: `${n * 20}%` }} />
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 flex justify-between font-mono text-[10px] uppercase tracking-[0.2em] sm:inset-x-8 sm:bottom-8 sm:text-xs">
-          <span ref={hudStatus} className="text-signal-bright" aria-live="polite">SIGNAL OK</span>
-          <span className="text-mute">GMK nuSIGNAL</span>
+          <span ref={acquiringRef} className="absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-signal opacity-0 sm:text-xs">
+            Acquiring…
+          </span>
         </div>
 
         <div
