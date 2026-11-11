@@ -1,7 +1,6 @@
-import { ArrowUpRight } from "lucide-react";
 
 /* TODO: every value here is a placeholder until the group buy is confirmed. */
-type Kit = { name: string; image?: string };
+type Kit = { name: string; image: string };
 type Stage = { label: string; date: string; live?: boolean };
 
 const INFO: {
@@ -14,8 +13,6 @@ const INFO: {
   kits: [
     { name: "Base", image: "/images/kit-base.webp" },
     { name: "Novelties", image: "/images/kit-novelties.webp" },
-    { name: "Spacebars" },
-    { name: "40s" },
   ],
   colours: [
     { name: "Black", code: "CR", hex: "#0d0f13", ink: "#cfe0ff" },
@@ -60,36 +57,15 @@ export function CTA({ className = "" }: { className?: string }) {
 
 const safeHref = (u?: string) => (u?.startsWith("https:") ? u : undefined);
 
-function KitScreen({ kit, extra }: { kit: Kit; extra?: Kit[] }) {
+function KitScreen({ kit }: { kit: Kit }) {
   const id = `kit-${kit.name.toLowerCase()}`;
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className={screen}>
-      <div className={split}>
-        <a href={kit.image} className="relative block w-full max-w-[min(100%,calc(100svh-8rem))] p-3 focus-visible:outline-2 focus-visible:outline-signal-bright max-lg:max-w-[min(100%,40svh)] lg:order-2 lg:col-span-7 lg:justify-self-end">
-          {/* brackets frame the render like a scope viewport */}
-          <span aria-hidden className="absolute left-0 top-0 h-4 w-4 border-l border-t border-signal" />
-          <span aria-hidden className="absolute right-0 top-0 h-4 w-4 border-r border-t border-signal" />
-          <span aria-hidden className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-signal" />
-          <span aria-hidden className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-signal" />
-          {/* skeleton is the wrapper's background: the opaque img paints over it on load, so no JS is needed */}
-          <div className="ns-skeleton relative aspect-square bg-cap">
-            {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
-            <img src={kit.image} alt={`GMK nuSignal ${kit.name} kit render`} width={2000} height={2000} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          </div>
-        </a>
-        <div className="lg:col-span-5">
-          <h2 id={`${id}-h`} className="font-display text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-tight text-signal-bright">{kit.name}</h2>
-          <a href={kit.image} className="mt-4 inline-flex items-center gap-1 font-mono text-base underline underline-offset-4 hover:text-signal-bright focus-visible:outline-2 focus-visible:outline-signal-bright lg:mt-6">
-            Full render <ArrowUpRight aria-hidden className="h-4 w-4" />
-          </a>
-          {extra && (
-            <ul className="mt-4 space-y-2 font-display text-base lg:mt-10">
-              {extra.map((k) => (
-                <li key={k.name} className="bg-cap px-4 py-2 text-signal-bright lg:py-3">{k.name}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+    <section id={id} aria-labelledby={`${id}-h`} className={`${screen} items-center`}>
+      <h2 id={`${id}-h`} className="font-display text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-tight text-signal-bright">{kit.name}</h2>
+      {/* skeleton is the wrapper's background: the opaque img paints over it on load, so no JS is needed */}
+      <div className="ns-skeleton relative mt-6 aspect-square w-full max-w-[min(100%,calc(100svh-14rem))] bg-cap lg:mt-8">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
+        <img src={kit.image} alt={`GMK nuSignal ${kit.name} kit render`} width={1600} height={1600} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
       </div>
     </section>
   );
@@ -97,13 +73,12 @@ function KitScreen({ kit, extra }: { kit: Kit; extra?: Kit[] }) {
 
 export default function Info() {
   const { kits, colours, timeline, vendors, faq } = INFO;
-  const [base, novelties] = kits.filter((k) => k.image);
-  const extra = kits.filter((k) => !k.image);
+  const [base, novelties] = kits;
   return (
     <div id="info" className="bg-void px-4 text-signal-bright sm:px-6 lg:px-24">
       <div className="wrap mx-auto max-w-[1440px]">
         <KitScreen kit={base} />
-        <KitScreen kit={novelties} extra={extra} />
+        <KitScreen kit={novelties} />
 
         <section id="colours" aria-labelledby="colours-h" className={screen}>
           <h2 id="colours-h" className={h2}>GMK CR black, V4 blue</h2>
