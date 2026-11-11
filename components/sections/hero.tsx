@@ -28,8 +28,9 @@ export default function Hero() {
         <CTA className="mt-10" />
       </div>
 
-      <div className="absolute bottom-4 left-4 z-10 sm:bottom-8 sm:left-6 lg:left-24">
-        <Waveform label="CARRIER · CH 01" bars={24} intensity="medium" variant="bright" className="hidden w-56 md:block lg:w-64" />
+      {/* full-width carrier along the bottom edge, kept faint so it reads as texture */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 opacity-25 sm:px-6 lg:px-24">
+        <Waveform bare bars={96} intensity="low" variant="bright" className="w-full" />
       </div>
     </section>
   );

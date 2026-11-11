@@ -10,6 +10,8 @@ interface WaveformProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: string
   intensity?: "low" | "medium" | "high"
   audioSrc?: string
+  /** bars only: no box, label, scanlines or corners; bars stretch to fill the width */
+  bare?: boolean
 }
 
 // nuSignal blues instead of the stock green/amber
@@ -42,6 +44,7 @@ export function Waveform({
   label,
   intensity = "medium",
   audioSrc,
+  bare = false,
   className,
   ...props
 }: WaveformProps) {
@@ -49,7 +52,9 @@ export function Waveform({
   const barRefs = React.useRef<(HTMLDivElement | null)[]>([])
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const range = intensityRange[intensity]
-  const barClass = cn("w-1.5 rounded-t-sm", variantColor[variant], playing && variantGlow[variant])
+  const barClass = cn(bare ? "flex-1 rounded-t-[1px]" : "w-1.5 rounded-t-sm", variantColor[variant], playing && !bare && variantGlow[variant])
+  // keep the wave shape the same however many bars there are
+  const k = 24 / bars
 
   React.useEffect(() => {
     const audio = audioRef.current
@@ -67,14 +72,14 @@ export function Waveform({
       })
     }
     const still = () =>
-      paint((i) => (playing ? range.min + (range.max - range.min) * (Math.sin(i * 0.5) * 0.5 + 0.5) : 4))
+      paint((i) => (playing ? range.min + (range.max - range.min) * (Math.sin(i * k * 0.5) * 0.5 + 0.5) : 4))
     const animate = () => {
       // display:none parents still intersect as 0x0, so check offsetParent too
       if (!root.offsetParent) { raf = 0; return }
       f++
       paint((i) => {
-        const wave1 = Math.sin(f * 0.06 + i * 0.5) * 0.5 + 0.5
-        const wave2 = Math.sin(f * 0.1 + i * 0.3 + 2) * 0.3 + 0.3
+        const wave1 = Math.sin(f * 0.06 + i * k * 0.5) * 0.5 + 0.5
+        const wave2 = Math.sin(f * 0.1 + i * k * 0.3 + 2) * 0.3 + 0.3
         const noise = Math.random() * 0.2
         return range.min + (range.max - range.min) * ((wave1 + wave2 + noise) / 1.5)
       })
@@ -98,21 +103,21 @@ export function Waveform({
       mq.removeEventListener("change", update)
       audio?.pause()
     }
-  }, [playing, bars, range.min, range.max, audioSrc])
+  }, [playing, bars, k, range.min, range.max, audioSrc])
 
   return (
     <div
       ref={rootRef}
       data-slot="tron-waveform"
       className={cn(
-        "relative overflow-hidden rounded border border-primary/30 bg-card/90 p-3",
+        bare ? "relative" : "relative overflow-hidden rounded border border-primary/30 bg-card/90 p-3",
         className
       )}
       {...props}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.25)_2px,rgba(0,0,0,0.25)_4px)]" />
+      {!bare && <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.25)_2px,rgba(0,0,0,0.25)_4px)]" />}
 
-      {label && (
+      {label && !bare && (
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[10px] uppercase tracking-widest text-foreground/80">{label}</span>
           <span className={cn("text-[9px] uppercase tracking-widest", playing ? "text-signal-bright animate-pulse" : "text-foreground/40")}>
@@ -121,7 +126,7 @@ export function Waveform({
         </div>
       )}
 
-      <div className="flex items-end justify-center gap-[2px]" style={{ height: CONTAINER_HEIGHT }}>
+      <div className={cn("flex items-end gap-[2px]", bare ? "justify-between" : "justify-center")} style={{ height: CONTAINER_HEIGHT }}>
         {Array.from({ length: bars }, (_, i) => (
           <div key={i} ref={(el) => { barRefs.current[i] = el }} className={barClass} style={{ height: 4 }} />
         ))}
@@ -129,10 +134,12 @@ export function Waveform({
 
       {audioSrc && <audio ref={audioRef} src={audioSrc} loop preload="auto" />}
 
+      {!bare && <>
       <div className="pointer-events-none absolute left-0 top-0 h-3 w-3 border-l-2 border-t-2 border-primary/50" />
       <div className="pointer-events-none absolute right-0 top-0 h-3 w-3 border-r-2 border-t-2 border-primary/50" />
       <div className="pointer-events-none absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 border-primary/50" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 border-primary/50" />
+      </>}
     </div>
   )
 }
