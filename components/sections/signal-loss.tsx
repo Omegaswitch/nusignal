@@ -12,14 +12,15 @@ import Hero from "@/components/sections/hero";
  * then NO SIGNAL, then the kits lock in. DOM is updated via refs (no React re-renders on scroll).
  */
 
-// TODO: add renders for the kits without src; until then they lock in as a placeholder square
-const KITS: { name: string; src?: string }[] = [
-  { name: "Base kit", src: "/images/kit-base.webp" },
-  { name: "Novelties", src: "/images/kit-novelties.webp" },
-  { name: "Numpad" },
-  { name: "Alt mods" },
-  { name: "Extension" },
-  { name: "NorDeUK" },
+// a kit without src locks in as a placeholder square until its render exists
+// aspect is width / height of the render; the frame takes each kit's shape
+const KITS: { name: string; src?: string; aspect: number }[] = [
+  { name: "Base kit", src: "/images/kit-base.webp", aspect: 1 },
+  { name: "Novelties", src: "/images/kit-novelties.webp", aspect: 1 },
+  { name: "Numpad", src: "/images/kit-numpad.webp", aspect: 16 / 9 },
+  { name: "Alt mods", src: "/images/kit-alt-mods.webp", aspect: 16 / 9 },
+  { name: "Extension", src: "/images/kit-extension.webp", aspect: 16 / 9 },
+  { name: "NorDeUK", src: "/images/kit-nordeuk.webp", aspect: 16 / 9 },
 ];
 
 // section progress (0..1), one segment per kit. Snap anchors sit on clean rest states: the hero, then each kit locked.
@@ -119,7 +120,9 @@ export default function SignalLoss() {
     const loaded = (i: number) => !imgs[i] || !!bmps[i];
 
     let W = 0, H = 0, dpr = 1;
-    let box = { x: 0, y: 0, s: 0 };
+    let box = { x: 0, y: 0, w: 0, h: 0 };
+    let boxKit = -1;
+    let areaW = 0, areaH = 0;
     let logo = { x: 0, y: 0, w: 0 };
     let logoStale = true;
     let dirty = true;
@@ -135,13 +138,9 @@ export default function SignalLoss() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = buf.width = scratch.width = Math.round(W * dpr);
       canvas.height = buf.height = scratch.height = Math.round(H * dpr);
-      const s = Math.min(W - 32, H - (W < 640 ? 200 : 220));
-      box = { x: (W - s) / 2, y: (H - s) / 2 + (W < 640 ? 10 : 0), s };
-      const f = frameRef.current!;
-      f.style.left = box.x + "px";
-      f.style.top = box.y + "px";
-      f.style.width = s + "px";
-      f.style.height = s + "px";
+      areaW = W - 32;
+      areaH = H - (W < 640 ? 200 : 220);
+      boxKit = -1;
       lineStep = Math.max(2, Math.round(3 * dpr));
       const lc = document.createElement("canvas");
       lc.width = 1;
@@ -233,19 +232,33 @@ export default function SignalLoss() {
       c.shadowBlur = 0;
     }
 
+    // fit kit i's render into the stage, centred, and move the scope frame onto it
+    function fitBox(i: number) {
+      if (i === boxKit) return;
+      boxKit = i;
+      const a = KITS[i].aspect;
+      const w = Math.min(areaW, areaH * a), h = w / a;
+      box = { x: (W - w) / 2, y: (H - h) / 2 + (W < 640 ? 10 : 0), w, h };
+      const f = frameRef.current!;
+      f.style.left = box.x + "px";
+      f.style.top = box.y + "px";
+      f.style.width = w + "px";
+      f.style.height = h + "px";
+    }
+
     function drawKit(c: CanvasRenderingContext2D, i: number, t: number) {
       const w = buf.width, h = buf.height;
       c.fillStyle = VOID;
       c.fillRect(0, 0, w, h);
-      const x = box.x * dpr, y = box.y * dpr, s = box.s * dpr;
+      const x = box.x * dpr, y = box.y * dpr, bw = box.w * dpr, s = box.h * dpr;
       const im = imgs[i];
       if (!im) {
         // placeholder: cap-black square with a faint "nu" from the logo paths
         c.fillStyle = "#0d0f13";
-        c.fillRect(x, y, s, s);
+        c.fillRect(x, y, bw, s);
         const k = (s * 0.3) / 114; // the "nu" of the wordmark spans x 0..114, y 103..155
         c.save();
-        c.translate(x + s / 2 - 57 * k, y + s / 2 - 129 * k);
+        c.translate(x + bw / 2 - 57 * k, y + s / 2 - 129 * k);
         c.scale(k, k);
         c.beginPath();
         c.rect(0, 100, 118, 60);
@@ -256,12 +269,12 @@ export default function SignalLoss() {
         return;
       }
       if (bmps[i]) {
-        c.drawImage(bmps[i], x, y, s, s);
+        c.drawImage(bmps[i], x, y, bw, s);
         return;
       }
       // skeleton: dim panel with a scanning band, so the frame is never an empty box
       c.fillStyle = "#0a0f1a";
-      c.fillRect(x, y, s, s);
+      c.fillRect(x, y, bw, s);
       const bh = s * 0.18;
       const by = y - bh + ((t * 0.45) % 1) * (s + bh);
       const g = c.createLinearGradient(0, by, 0, by + bh);
@@ -270,10 +283,10 @@ export default function SignalLoss() {
       g.addColorStop(1, "rgba(59,139,255,0)");
       c.save();
       c.beginPath();
-      c.rect(x, y, s, s);
+      c.rect(x, y, bw, s);
       c.clip();
       c.fillStyle = g;
-      c.fillRect(x, by, s, bh);
+      c.fillRect(x, by, bw, bh);
       c.restore();
     }
 
@@ -417,10 +430,11 @@ export default function SignalLoss() {
         const out = next ? smooth(next - KIT_FADE, next, p) : 0;
         const g = reduced ? 0 : Math.max(1 - ease(lock), out);
         const vis = smooth(0, 0.15, lock) * (1 - out);
+        fitBox(i);
         const ready = loaded(i);
         source(ready ? `kit${i}` : `skel${t}`, (c) => drawKit(c, i, t));
         present({
-          block: 1 + g ** 1.5 * (box.s / 10),
+          block: 1 + g ** 1.5 * (Math.min(box.w, box.h) / 10),
           ab: g * 12 * (0.7 + 0.3 * sn(t * 1.3, i)),
           slices: g * g * 0.6,
           burst: 0,
@@ -517,7 +531,7 @@ export default function SignalLoss() {
           <div className="grid gap-4 p-4 sm:grid-cols-2">
             {KITS.filter((k) => k.src).map((k) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={k.src} src={k.src} alt={`GMK nuSignal ${k.name.toLowerCase()} render`} width={1600} height={1600} className="h-auto w-full" />
+              <img key={k.src} src={k.src} alt={`GMK nuSignal ${k.name.toLowerCase()} render`} width={1600} height={Math.round(1600 / k.aspect)} className="h-auto w-full" />
             ))}
           </div>
         </noscript>
