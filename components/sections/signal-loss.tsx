@@ -557,8 +557,6 @@ export default function SignalLoss() {
           <span className={`${corner} -right-2 -top-2 border-r-2 border-t-2`} />
           <span className={`${corner} -bottom-2 -left-2 border-b-2 border-l-2`} />
           <span className={`${corner} -bottom-2 -right-2 border-b-2 border-r-2`} />
-          <span className="absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-signal-bright/60" />
-          <span className="absolute left-1/2 top-1/2 h-px w-3 -translate-x-1/2 -translate-y-1/2 bg-signal-bright/60" />
           <span ref={acquiringRef} className="absolute inset-x-0 bottom-3 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-signal opacity-0 sm:text-xs">
             Acquiring…
           </span>

@@ -4,10 +4,16 @@
 type Stage = { label: string; date: string; live?: boolean };
 
 const INFO: {
+  renders: { src: string; alt: string }[];
   colours: { name: string; code: string; hex: string; ink: string }[];
   timeline: Stage[];
   vendors: { region: string; vendor: string; url?: string }[];
 } = {
+  renders: [
+    { src: "/images/render-2.webp", alt: "GMK nuSignal on a blue TKL keyboard, blue Esc, enter and spacebar" },
+    { src: "/images/render-1.webp", alt: "GMK nuSignal on two grey keyboards, with blue dish and walkie-talkie novelties" },
+    { src: "/images/render-3.webp", alt: "GMK nuSignal alt mods on a black TKL keyboard: Signal Lost, Transmit, Boost" },
+  ],
   colours: [
     { name: "Black", code: "CR", hex: "#0d0f13", ink: "#cfe0ff" },
     { name: "Blue", code: "V4", hex: "#1f6fe0", ink: "#ffffff" },
@@ -46,10 +52,23 @@ export function CTA({ className = "" }: { className?: string }) {
 const safeHref = (u?: string) => (u?.startsWith("https:") ? u : undefined);
 
 export default function Info() {
-  const { colours, timeline, vendors } = INFO;
+  const { renders, colours, timeline, vendors } = INFO;
   return (
     <div id="info" className="bg-void px-4 text-signal-bright sm:px-6 lg:px-24">
       <div className="wrap mx-auto max-w-[1440px]">
+        <section id="renders" aria-labelledby="renders-h" className={screen}>
+          <h2 id="renders-h" className="sr-only">Renders</h2>
+          {/* one large render beside two stacked; each opens full size */}
+          <div className="grid gap-2 sm:gap-3 lg:grid-cols-3 lg:grid-rows-2 lg:gap-4">
+            {renders.map((r, i) => (
+              <a key={r.src} href={r.src} className={`group block overflow-hidden bg-cap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-bright ${i === 0 ? "lg:col-span-2 lg:row-span-2" : ""}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
+                <img src={r.src} alt={r.alt} width={1920} height={1080} loading="lazy" decoding="async" className="aspect-video h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none" />
+              </a>
+            ))}
+          </div>
+        </section>
+
         <section id="colours" aria-labelledby="colours-h" className={screen}>
           <h2 id="colours-h" className={h2}>GMK CR black, V4 blue</h2>
           <div className="mt-10 grid h-[55svh] grid-cols-2 gap-4">
