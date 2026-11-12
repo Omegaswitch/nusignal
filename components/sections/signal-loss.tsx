@@ -34,7 +34,8 @@ const KIT_LOCKED = KITS.map((_, i) => (i ? (i + 0.8) * SEG : 0.92 * SEG)); // ea
 const KIT_FADE = 0.08 * SEG;   // glitch-out before the next kit
 const SCROLL_SVH = 100 * KITS.length; // scroll distance; the section is this plus one stage tall
 const K = 6;             // display progress easing rate (1/s)
-const VMAX = 0.5;        // display progress speed cap (1/s): about one phase per second
+const MOVE_S = 1.1;      // seconds the glitch takes to play one kit move at full speed
+const VMAX = SEG / MOVE_S; // display progress speed cap (1/s), per kit so more kits do not mean faster glitches
 const MAX_LEVEL = 8;     // largest mosaic block: 2^8 device px
 const VOID = "#050608";
 
@@ -391,9 +392,9 @@ export default function SignalLoss() {
           // sharper bursts only near the end of the loss
           const burst = reduced ? 0 : smooth(0.7, 1, q) * Math.max(0, sn(t * 3.1, 9)) ** 4;
           present({
-            block: 1 + g ** 1.6 * 60,
-            ab: g * 12 * (0.65 + 0.35 * sn(t * 1.1, 2)) + burst * 8,
-            slices: g * g,
+            block: 1 + g ** 1.6 * 72,
+            ab: g * 15 * (0.65 + 0.35 * sn(t * 1.1, 2)) + burst * 10,
+            slices: Math.min(1, g * g * 1.25),
             burst,
             alpha: 1 - (reduced ? q : smooth(0.88, 1, q)),
             t,
@@ -434,9 +435,9 @@ export default function SignalLoss() {
         const ready = loaded(i);
         source(ready ? `kit${i}` : `skel${t}`, (c) => drawKit(c, i, t));
         present({
-          block: 1 + g ** 1.5 * (Math.min(box.w, box.h) / 10),
-          ab: g * 12 * (0.7 + 0.3 * sn(t * 1.3, i)),
-          slices: g * g * 0.6,
+          block: 1 + g ** 1.4 * (Math.min(box.w, box.h) / 8),
+          ab: g * 16 * (0.7 + 0.3 * sn(t * 1.3, i)),
+          slices: g * g * 0.9,
           burst: 0,
           alpha: vis,
           t,

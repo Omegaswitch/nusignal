@@ -15,10 +15,28 @@ export default function SnapAssist() {
     if (!stage) return;
     let lockedUntil = 0;
 
+    // our own eased scroll: the browser's smooth scroll is short and abrupt. Snap is paused while it runs,
+    // or mandatory snap would yank each intermediate frame back to the nearest point.
+    const html = document.documentElement;
+    let anim = 0;
+    const DURATION = 950;
+    const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
     const go = (from: number, dir: number) => {
       const step = stage.offsetHeight; // one screen in svh px, the spacing of every snap point
-      lockedUntil = performance.now() + 900;
-      window.scrollTo({ top: (Math.round(from / step) + dir) * step, behavior: reduced.matches ? "auto" : "smooth" });
+      const max = html.scrollHeight - window.innerHeight;
+      const to = Math.max(0, Math.min(max, (Math.round(from / step) + dir) * step));
+      lockedUntil = performance.now() + DURATION + 150;
+      cancelAnimationFrame(anim);
+      if (reduced.matches || to === window.scrollY) { window.scrollTo(0, to); return; }
+      const start = window.scrollY, t0 = performance.now();
+      html.style.scrollSnapType = "none";
+      const tick = (now: number) => {
+        const x = Math.min(1, (now - t0) / DURATION);
+        window.scrollTo(0, start + (to - start) * easeInOut(x));
+        if (x < 1) anim = requestAnimationFrame(tick);
+        else html.style.scrollSnapType = "";
+      };
+      anim = requestAnimationFrame(tick);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -50,6 +68,8 @@ export default function SnapAssist() {
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
+      cancelAnimationFrame(anim);
+      html.style.scrollSnapType = "";
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchend", onTouchEnd);

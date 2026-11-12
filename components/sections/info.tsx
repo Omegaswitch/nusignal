@@ -1,3 +1,4 @@
+import { AntiMetalButton } from "@/components/ui/anti-metal-button";
 
 /* TODO: every value here is a placeholder until the group buy is confirmed. */
 
@@ -40,12 +41,20 @@ const screen = "flex min-h-svh snap-start snap-always flex-col justify-center py
 const split = "grid items-start gap-8 lg:grid-cols-12 lg:gap-12";
 const ink = "text-[#cfe0ff]";
 
-// TODO: replace "#" with the interest check form URL. Square corners to match the bracketed render frames.
+// TODO: replace "#" with the interest check form URL.
+// Square corners to match the bracketed render frames; the accent block sweeps across on hover and keyboard focus.
 export function CTA({ className = "" }: { className?: string }) {
   return (
-    <a href="#" className={`inline-flex items-center bg-signal px-7 py-4 font-display text-lg font-medium text-white transition-colors hover:bg-signal-deep focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-signal-bright active:translate-y-px ${className}`}>
-      Join the interest check
-    </a>
+    <AntiMetalButton
+      href="#"
+      label="Join the interest check"
+      accentFrom="#3b8bff"
+      accentTo="#1f6fe0"
+      dotColor="#ffffff"
+      className={`h-14 w-[19rem] rounded-none font-display ${className}`}
+      labelClassName="right-6 text-lg"
+      accentClassName="w-12 rounded-none pl-4"
+    />
   );
 }
 

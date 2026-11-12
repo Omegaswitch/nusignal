@@ -57,3 +57,8 @@ p, li { text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse, .ns-skeleton { animation: none !important; }
 }
+
+/* anti-metal button: dot chevrons wave in sequence */
+@keyframes bd-dot-wave { 0%, 70%, 100% { opacity: .25; transform: scale(.85) } 35% { opacity: 1; transform: scale(1) } }
+.bd-dot { transform-box: fill-box; transform-origin: center; animation: bd-dot-wave 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .bd-dot { animation: none; opacity: 1; } }
