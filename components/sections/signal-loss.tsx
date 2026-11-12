@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { GMK_PATHS, WORD_PATHS } from "@/components/brand/nusignal-logo";
+import { GMK_PATH, LOGO_H, LOGO_W, WORD_PATH } from "@/components/brand/nusignal-logo";
 import Hero from "@/components/sections/hero";
 
 /*
@@ -82,8 +82,8 @@ export default function SignalLoss() {
     const bctx = buf.getContext("2d")!;
     const scratch = document.createElement("canvas");
     const sctx = scratch.getContext("2d")!;
-    const gmk = GMK_PATHS.map((d) => new Path2D(d));
-    const word = WORD_PATHS.map((d) => new Path2D(d));
+    const gmk = new Path2D(GMK_PATH);
+    const word = new Path2D(WORD_PATH);
 
     // fine grain: a few pre-rendered 1px noise tiles, offset randomly per frame
     const TILE = 128;
@@ -211,25 +211,19 @@ export default function SignalLoss() {
       if (logoStale) {
         // relative to the hero wrapper, so its offscreen transform does not matter
         const r = logoEl.getBoundingClientRect(), o = heroWrap.getBoundingClientRect();
-        logo = { x: r.left - o.left, y: r.top - o.top + (r.height - (r.width * 156) / 456) / 2, w: r.width };
+        logo = { x: r.left - o.left, y: r.top - o.top + (r.height - (r.width * LOGO_H) / LOGO_W) / 2, w: r.width };
         logoStale = false;
       }
-      // same geometry as <NuSignalLogo> (viewBox 456x156), drawn into the DOM logo's rect
-      const k = (logo.w / 456) * dpr;
+      // same geometry as <NuSignalLogo>, drawn into the DOM logo's rect
+      const k = (logo.w / LOGO_W) * dpr;
       sctx.setTransform(1, 0, 0, 1, 0, 0);
       sctx.globalCompositeOperation = "source-over";
       sctx.clearRect(0, 0, scratch.width, scratch.height);
-      sctx.lineCap = "round";
-      sctx.lineJoin = "round";
-      const stroke = (paths: Path2D[], color: string, lw: number) => {
-        sctx.strokeStyle = color;
-        sctx.lineWidth = lw;
-        paths.forEach((d) => sctx.stroke(d));
-      };
-      sctx.setTransform(k * 0.85, 0, 0, k * 0.85, logo.x * dpr + 108 * k, logo.y * dpr + 14 * k);
-      stroke(gmk, "#3b8bff", 3.6);
-      sctx.setTransform(k, 0, 0, k, logo.x * dpr + 6 * k, logo.y * dpr + 52 * k);
-      stroke(word, "#e8eefb", 9);
+      sctx.setTransform(k, 0, 0, k, logo.x * dpr, logo.y * dpr);
+      sctx.fillStyle = "#3b8bff";
+      sctx.fill(gmk, "evenodd");
+      sctx.fillStyle = "#e8eefb";
+      sctx.fill(word, "evenodd");
       sctx.setTransform(1, 0, 0, 1, 0, 0);
       // one shadow for the whole mark, matching the DOM logo's drop-shadow
       c.shadowColor = "rgba(31,111,224,0.35)";
@@ -249,14 +243,15 @@ export default function SignalLoss() {
         // placeholder: cap-black square with a faint "nu" from the logo paths
         c.fillStyle = "#0d0f13";
         c.fillRect(x, y, s, s);
-        const k = (s * 0.3) / 90; // "nu" spans ~90 x 50 logo units
+        const k = (s * 0.3) / 114; // the "nu" of the wordmark spans x 0..114, y 103..155
         c.save();
-        c.translate(x + s / 2 - 45 * k, y + s / 2 - 70 * k);
+        c.translate(x + s / 2 - 57 * k, y + s / 2 - 129 * k);
         c.scale(k, k);
-        c.lineCap = c.lineJoin = "round";
-        c.strokeStyle = "rgba(59,139,255,0.3)";
-        c.lineWidth = 9;
-        word.slice(0, 2).forEach((path) => c.stroke(path));
+        c.beginPath();
+        c.rect(0, 100, 118, 60);
+        c.clip();
+        c.fillStyle = "rgba(59,139,255,0.3)";
+        c.fill(word, "evenodd");
         c.restore();
         return;
       }

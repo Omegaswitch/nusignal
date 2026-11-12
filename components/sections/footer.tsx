@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NuSignalWord } from "@/components/brand/nusignal-logo";
 import { AtSign, Camera, Code2, MessageCircle } from "lucide-react";
 
 // TODO: real designer credit and social URLs. lucide dropped brand logos, hence generic glyphs.
@@ -27,9 +28,7 @@ export default function Footer() {
           ))}
         </ul>
       </div>
-      <p aria-hidden className="mx-auto w-full max-w-[1440px] whitespace-nowrap font-display text-[19vw] leading-[0.8] tracking-tight text-signal lg:text-[min(18vw,17rem)]">
-        nuSIGNAL
-      </p>
+      <NuSignalWord className="wrap mx-auto w-full max-w-[1440px] text-signal" />
       <div className="wrap mx-auto flex w-full max-w-[1440px] justify-between py-6 font-mono text-sm">
         <span>
           © nuSignal · <Link href="/privacy/" className="-my-3 inline-block py-3 underline underline-offset-4 hover:text-[#cfe0ff] focus-visible:outline-2 focus-visible:outline-signal-bright">Privacy</Link>
