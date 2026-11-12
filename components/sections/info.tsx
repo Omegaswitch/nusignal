@@ -42,18 +42,16 @@ const split = "grid items-start gap-8 lg:grid-cols-12 lg:gap-12";
 const ink = "text-[#cfe0ff]";
 
 // TODO: replace "#" with the interest check form URL.
-// Square corners to match the bracketed render frames; the accent block sweeps across on hover and keyboard focus.
+// Square corners to match the kit frames; the blue tab fills the whole button on hover and keyboard focus.
 export function CTA({ className = "" }: { className?: string }) {
   return (
     <AntiMetalButton
       href="#"
       label="Join the interest check"
-      accentFrom="#3b8bff"
-      accentTo="#1f6fe0"
+      accentFrom="#1f6fe0"
+      accentTo="#3b8bff"
       dotColor="#ffffff"
-      className={`h-14 w-[19rem] rounded-none font-display ${className}`}
-      labelClassName="right-6 text-lg"
-      accentClassName="w-12 rounded-none pl-4"
+      className={`h-14 rounded-none pl-16 pr-7 font-display text-lg text-white ${className}`}
     />
   );
 }

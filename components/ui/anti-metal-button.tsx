@@ -23,37 +23,37 @@ function DoubleChevron({ index, dotColor }: { index: number; dotColor: string })
 
 type Common = {
   label?: React.ReactNode; accentFrom?: string; accentTo?: string; dotColor?: string; className?: string; children?: React.ReactNode;
-  /** extra classes for the label and the sliding accent block, for sizes other than the default 9rem x 2.75rem */
-  labelClassName?: string; accentClassName?: string;
 };
 // renders an <a> when given href (the CTA is a link), otherwise a <button>
 type Props = Common &
   (({ href: string } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, keyof Common>) |
    ({ href?: undefined } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, keyof Common>));
 
+/*
+ * Transparent face (no outline) with an accent tab on the left. On hover or keyboard focus the accent
+ * fills the whole button: a clip-path reveal, so it animates on the compositor without re-layout.
+ * The label stays on top the whole time. Size it with className (height, padding, text size).
+ */
 export const AntiMetalButton = React.forwardRef<HTMLAnchorElement & HTMLButtonElement, Props>(function AntiMetalButton(
-  { className, labelClassName, accentClassName, children, label, accentFrom = "#d6f54a", accentTo = "#c5ea2c", dotColor = "#0f0f0f", ...props },
+  { className, children, label, accentFrom = "#d6f54a", accentTo = "#c5ea2c", dotColor = "#0f0f0f", ...props },
   ref,
 ) {
   const content = label ?? children ?? "Book a demo";
   const cls = cn(
-    "group/btn relative inline-flex h-11 w-36 overflow-hidden rounded-xl transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-    "bg-[linear-gradient(180deg,#1a1a1a_0%,#0a0a0a_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.18)]",
+    "group/btn relative isolate inline-flex h-11 items-center overflow-hidden rounded-xl bg-transparent pl-14 pr-5 text-[14px] font-medium tracking-tight text-white",
+    "transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     className,
   );
   const inner = (
     <>
-      <span className={cn("absolute inset-y-0 right-4 flex items-center text-[14px] font-medium tracking-tight text-white", labelClassName)}>{content}</span>
       <span
         aria-hidden="true"
-        className={cn("absolute bottom-1 left-1 top-1 z-10 flex w-9 items-center justify-start gap-2.5 overflow-hidden rounded-md pl-3 pr-2.5 transition-[width,gap] duration-200 ease-[cubic-bezier(0.65,0,0.35,1)] group-hover/btn:w-[calc(100%-0.5rem)] group-focus-visible/btn:w-[calc(100%-0.5rem)] motion-reduce:transition-none", accentClassName)}
-        style={{
-          background: `linear-gradient(180deg, ${accentFrom} 0%, ${accentTo} 100%)`,
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08)",
-        }}
+        className="absolute inset-0 -z-10 flex items-center gap-2.5 pl-4 transition-[clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] [clip-path:inset(0_calc(100%-2.75rem)_0_0)] group-hover/btn:[clip-path:inset(0_0_0_0)] group-focus-visible/btn:[clip-path:inset(0_0_0_0)] motion-reduce:transition-none"
+        style={{ background: `linear-gradient(90deg, ${accentFrom} 0%, ${accentTo} 100%)` }}
       >
-        {[0, 1, 2, 3, 4].map((i) => <DoubleChevron key={i} index={i} dotColor={dotColor} />)}
+        <DoubleChevron index={0} dotColor={dotColor} />
       </span>
+      <span className="relative">{content}</span>
     </>
   );
   return props.href !== undefined ? (
