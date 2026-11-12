@@ -30,9 +30,9 @@ type Props = Common &
    ({ href?: undefined } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, keyof Common>));
 
 /*
- * Transparent face (no outline) with an accent tab on the left. On hover or keyboard focus the accent
- * fills the whole button: a clip-path reveal, so it animates on the compositor without re-layout.
- * The label stays on top the whole time. Size it with className (height, padding, text size).
+ * Transparent face (no outline) with an accent tab on the left. On hover or keyboard focus the accent,
+ * full of waving chevrons, takes over the whole button: a clip-path reveal, so it animates on the
+ * compositor without re-layout. Size it with className (height, padding, text size).
  */
 export const AntiMetalButton = React.forwardRef<HTMLAnchorElement & HTMLButtonElement, Props>(function AntiMetalButton(
   { className, children, label, accentFrom = "#d6f54a", accentTo = "#c5ea2c", dotColor = "#0f0f0f", ...props },
@@ -40,20 +40,21 @@ export const AntiMetalButton = React.forwardRef<HTMLAnchorElement & HTMLButtonEl
 ) {
   const content = label ?? children ?? "Book a demo";
   const cls = cn(
-    "group/btn relative isolate inline-flex h-11 items-center overflow-hidden rounded-xl bg-transparent pl-14 pr-5 text-[14px] font-medium tracking-tight text-white",
+    "group/btn relative inline-flex h-11 items-center overflow-hidden rounded-xl bg-transparent pl-14 pr-5 text-[14px] font-medium tracking-tight text-white",
     "transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     className,
   );
   const inner = (
     <>
+      <span className="relative">{content}</span>
+      {/* the fill sits over the label: at rest only the tab shows; on hover the chevrons take over the whole button */}
       <span
         aria-hidden="true"
-        className="absolute inset-0 -z-10 flex items-center gap-2.5 pl-4 transition-[clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] [clip-path:inset(0_calc(100%-2.75rem)_0_0)] group-hover/btn:[clip-path:inset(0_0_0_0)] group-focus-visible/btn:[clip-path:inset(0_0_0_0)] motion-reduce:transition-none"
+        className="absolute inset-0 flex items-center gap-2.5 overflow-hidden pl-4 transition-[clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] [clip-path:inset(0_calc(100%-2.375rem)_0_0)] group-hover/btn:[clip-path:inset(0_0_0_0)] group-focus-visible/btn:[clip-path:inset(0_0_0_0)] motion-reduce:transition-none"
         style={{ background: `linear-gradient(90deg, ${accentFrom} 0%, ${accentTo} 100%)` }}
       >
-        <DoubleChevron index={0} dotColor={dotColor} />
+        {Array.from({ length: 14 }, (_, i) => <DoubleChevron key={i} index={i} dotColor={dotColor} />)}
       </span>
-      <span className="relative">{content}</span>
     </>
   );
   return props.href !== undefined ? (
