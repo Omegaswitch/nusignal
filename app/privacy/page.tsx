@@ -3,8 +3,8 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Privacy policy" };
 
-// TODO before launch: fill in the contact address, the hosting provider and the interest check form provider.
-const CONTACT = "TBA";
+// TODO before launch: name the hosting provider and the interest check form provider.
+const OWNER = "baucts";
 const UPDATED = "11 November 2026";
 
 const h2 = "mt-12 font-display text-2xl text-signal-bright";
@@ -44,7 +44,7 @@ export default function Privacy() {
       </p>
 
       <h2 className={h2}>Contact</h2>
-      <p className="mt-3">Questions about this policy: {CONTACT}.</p>
+      <p className="mt-3">This site is run by {OWNER}. For questions about this policy or anything else, message {OWNER} on Discord.</p>
 
       <h2 className={h2}>Changes</h2>
       <p className="mt-3">If this policy changes, the new version and its date will be posted on this page.</p>

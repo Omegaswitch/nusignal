@@ -2,9 +2,9 @@ import Link from "next/link";
 import { NuSignalWord } from "@/components/brand/nusignal-logo";
 import { AtSign, Camera, Code2, MessageCircle } from "lucide-react";
 
-// TODO: real designer credit and social URLs. lucide dropped brand logos, hence generic glyphs.
+// TODO: real social URLs. lucide dropped brand logos, hence generic glyphs.
 const FOOTER = {
-  designer: "Designed by TBA",
+  designer: "Designed by baucts · questions? Message baucts on Discord",
   socials: [
     { label: "Discord", href: "#", Icon: MessageCircle },
     { label: "Instagram", href: "#", Icon: Camera },

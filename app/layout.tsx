@@ -10,6 +10,8 @@ const description = "GMK nuSignal: a black and blue doubleshot keycap set built 
 export const metadata: Metadata = {
   // TODO: set NEXT_PUBLIC_SITE_URL to the real domain so OG image URLs resolve
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://nusignal.example"),
+  authors: [{ name: "baucts" }],
+  creator: "baucts",
   title: { default: "GMK nuSignal", template: "%s · GMK nuSignal" },
   description,
   openGraph: {
