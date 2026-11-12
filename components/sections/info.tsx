@@ -59,7 +59,7 @@ export default function Info() {
         <section id="renders" aria-labelledby="renders-h" className={screen}>
           <h2 id="renders-h" className="sr-only">Renders</h2>
           {/* one large render beside two stacked; each opens full size */}
-          <div className="grid gap-2 sm:gap-3 lg:grid-cols-3 lg:grid-rows-2 lg:gap-4">
+          <div className="mx-auto grid w-full gap-2 sm:gap-3 max-lg:max-w-[calc((100svh-6rem)*16/27)] lg:grid-cols-3 lg:grid-rows-2 lg:gap-4">
             {renders.map((r, i) => (
               <a key={r.src} href={r.src} className={`group block overflow-hidden bg-cap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-bright ${i === 0 ? "lg:col-span-2 lg:row-span-2" : ""}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
