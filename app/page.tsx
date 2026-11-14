@@ -2,6 +2,7 @@ import SignalLoss from "@/components/sections/signal-loss";
 import Info from "@/components/sections/info";
 import Footer from "@/components/sections/footer";
 import SnapAssist from "@/components/snap-assist";
+import Lightbox from "@/components/lightbox";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
       <Info />
       <Footer />
       <SnapAssist />
+      <Lightbox />
     </main>
   );
 }

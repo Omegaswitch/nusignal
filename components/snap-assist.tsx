@@ -40,6 +40,7 @@ export default function SnapAssist() {
     };
 
     const onWheel = (e: WheelEvent) => {
+      if (document.querySelector(".lb:not([hidden])")) return; // the lightbox holds the page still
       if (short.matches || e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // ctrl+wheel is zoom
       e.preventDefault();
       const now = performance.now();
@@ -57,7 +58,7 @@ export default function SnapAssist() {
       startScroll = window.scrollY;
     };
     const onTouchEnd = (e: TouchEvent) => {
-      if (!single || short.matches || e.touches.length) return;
+      if (!single || short.matches || e.touches.length || document.querySelector(".lb:not([hidden])")) return;
       const dy = startY - e.changedTouches[0].clientY;
       const dx = startX - e.changedTouches[0].clientX;
       if (Math.abs(dy) < 30 || Math.abs(dy) < Math.abs(dx)) return;

@@ -65,13 +65,15 @@ export default function Info() {
       <div className="wrap mx-auto max-w-[1440px]">
         <section id="renders" aria-labelledby="renders-h" className={screen}>
           <h2 id="renders-h" className="sr-only">Renders</h2>
-          {/* one large render beside two stacked; each opens full size */}
+          {/* one large render beside two stacked; each opens in the lightbox */}
           <div className="mx-auto grid w-full gap-2 sm:gap-3 max-lg:max-w-[calc((100svh-6rem)*16/27)] lg:grid-cols-3 lg:grid-rows-2 lg:gap-4">
             {renders.map((r, i) => (
-              <a key={r.src} href={r.src} className={`group block overflow-hidden bg-cap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-bright ${i === 0 ? "lg:col-span-2 lg:row-span-2" : ""}`}>
+              <figure key={r.src} className={`render group relative m-0 overflow-hidden bg-cap ${i === 0 ? "lg:col-span-2 lg:row-span-2" : ""}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
-                <img src={r.src} alt={r.alt} width={1920} height={1080} loading="lazy" decoding="async" className="aspect-video h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none" />
-              </a>
+                <img src={r.src} alt={r.alt} width={1920} height={1080} loading="lazy" decoding="async" className="aspect-video h-full w-full object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03] motion-reduce:transition-none" />
+                {/* opens the travelling lightbox (components/lightbox.tsx) */}
+                <button type="button" className="zoom" aria-label={`View larger: ${r.alt}`} />
+              </figure>
             ))}
           </div>
         </section>
