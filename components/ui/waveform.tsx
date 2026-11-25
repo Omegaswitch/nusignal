@@ -61,6 +61,8 @@ export function Waveform({
     const root = rootRef.current!
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
     let raf = 0, f = 0, onScreen = false
+    // random spikes: a bar jumps toward the top and decays over a few frames, like a burst on the carrier
+    const spikes = new Float32Array(bars)
 
     // write straight to the DOM: a setState per frame re-rendered every bar at 60fps
     const paint = (h: (i: number) => number) => {
@@ -77,11 +79,19 @@ export function Waveform({
       // display:none parents still intersect as 0x0, so check offsetParent too
       if (!root.offsetParent) { raf = 0; return }
       f++
+      if (Math.random() < 0.06) {
+        // a burst hits a few neighbouring bars, tallest in the middle
+        const c = Math.floor(Math.random() * bars), w = 1 + Math.floor(Math.random() * 3), amp = 0.5 + Math.random() * 0.5
+        for (let d = -w; d <= w; d++) if (bars > c + d && c + d >= 0) spikes[c + d] = Math.max(spikes[c + d], amp * (1 - Math.abs(d) / (w + 1)))
+      }
       paint((i) => {
         const wave1 = Math.sin(f * 0.06 + i * k * 0.5) * 0.5 + 0.5
         const wave2 = Math.sin(f * 0.1 + i * k * 0.3 + 2) * 0.3 + 0.3
         const noise = Math.random() * 0.2
-        return range.min + (range.max - range.min) * ((wave1 + wave2 + noise) / 1.5)
+        const base = range.min + (range.max - range.min) * ((wave1 + wave2 + noise) / 1.5)
+        const v = base + (CONTAINER_HEIGHT - base) * spikes[i]
+        spikes[i] *= 0.86
+        return v
       })
       raf = requestAnimationFrame(animate)
     }

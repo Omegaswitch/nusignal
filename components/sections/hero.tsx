@@ -1,4 +1,5 @@
 import { NuSignalLogo } from "@/components/brand/nusignal-logo";
+import LogoGlitch from "@/components/brand/logo-glitch";
 import { Waveform } from "@/components/ui/waveform";
 import { AetherRibbonMesh } from "@/components/ui/aether-ribbon-mesh";
 import { CTA } from "@/components/sections/info";
@@ -12,15 +13,16 @@ export default function Hero() {
       <h1 className="sr-only">GMK nuSignal</h1>
       <div className="relative z-10 flex w-[92vw] md:w-[70vw] max-w-[min(1200px,150svh)] flex-col items-center">
         {/* data-hero-logo marks the exact logo rect the signal-loss canvas redraws over */}
-        <div data-hero-logo className="w-full">
-          <NuSignalLogo className="w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />
+        <div data-hero-logo className="relative w-full">
+          <NuSignalLogo className="block w-full drop-shadow-[0_0_24px_rgba(31,111,224,0.35)]" />
+          <LogoGlitch />
         </div>
         <CTA className="mt-10" />
       </div>
 
-      {/* full-width carrier along the bottom edge, kept faint so it reads as texture */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 opacity-25 sm:px-6 lg:px-24">
-        <Waveform bare bars={96} intensity="low" variant="bright" className="w-full" />
+      {/* carrier along the bottom edge, edge to edge, kept faint so it reads as texture; random spikes come from Waveform */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-10 opacity-25">
+        <Waveform bare bars={160} intensity="low" variant="bright" className="w-full" />
       </div>
     </section>
   );
