@@ -8,7 +8,7 @@ const INFO: {
   renders: { src: string; alt: string }[];
   colours: { name: string; code: string; hex: string; ink: string }[];
   timeline: Stage[];
-  vendors: { region: string; vendor: string; url?: string }[];
+  vendors: { region: string; vendor: string; url?: string; lead?: boolean }[];
 } = {
   renders: [
     { src: "/images/render-2.webp", alt: "GMK nuSignal on a blue TKL keyboard, blue Esc, enter and spacebar" },
@@ -26,12 +26,16 @@ const INFO: {
     { label: "Shipping", date: "TBA" },
   ],
   vendors: [
-    { region: "United States", vendor: "TBA" },
-    { region: "Canada", vendor: "TBA" },
-    { region: "Europe", vendor: "TBA" },
-    { region: "United Kingdom", vendor: "TBA" },
-    { region: "Oceania", vendor: "TBA" },
-    { region: "Asia", vendor: "TBA" },
+    // TODO: add each vendor's group-buy page as url (https only) once the links exist
+    { region: "USA", vendor: "Divinikey", lead: true },
+    { region: "EU", vendor: "Delta Key Co" },
+    { region: "UK", vendor: "ProtoTypist" },
+    { region: "CA / Global", vendor: "Unikeys" },
+    { region: "CN", vendor: "KBDFans" },
+    { region: "SEA", vendor: "Ktechs" },
+    { region: "JP", vendor: "Yushakobo" },
+    { region: "KR", vendor: "GeonWorks" },
+    { region: "OCE", vendor: "Keebz N Cables" },
   ],
 };
 
@@ -119,11 +123,11 @@ export default function Info() {
               <h2 id="vendors-h" className={h2}>Regional vendors</h2>
               <CTA className="mt-6 lg:mt-10" />
             </div>
-            <table className="w-full border-collapse font-mono text-base tabular-nums lg:col-span-5">
+            <table className="w-full border-collapse font-mono text-sm tabular-nums sm:text-base lg:col-span-5">
               <thead>
                 <tr className="border-b border-signal text-left">
-                  <th scope="col" className="py-3 font-normal">Region</th>
-                  <th scope="col" className="py-3 text-right font-normal">Vendor</th>
+                  <th scope="col" className="py-2 font-normal">Region</th>
+                  <th scope="col" className="py-2 text-right font-normal">Vendor</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,8 +135,8 @@ export default function Info() {
                   const href = safeHref(v.url);
                   return (
                     <tr key={v.region} className="border-b border-cap-edge">
-                      <td className={`py-2 sm:py-4 ${ink}`}>{v.region}</td>
-                      <td className={`py-2 text-right sm:py-4 ${ink}`}>{href ? <a href={href} className="underline">{v.vendor}</a> : v.vendor}</td>
+                      <td className={`py-[clamp(0.25rem,1.1svh,1rem)] ${ink}`}>{v.region}</td>
+                      <td className={`py-[clamp(0.25rem,1.1svh,1rem)] text-right ${ink}`}>{href ? <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{v.vendor}</a> : v.vendor}{v.lead && <span className="ml-2 text-signal-bright">(lead)</span>}</td>
                     </tr>
                   );
                 })}
