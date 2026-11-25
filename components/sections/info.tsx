@@ -64,12 +64,13 @@ export default function Info() {
   return (
     <div id="info" className="bg-void px-4 text-signal-bright sm:px-6 lg:px-24">
       <div className="wrap mx-auto max-w-[1440px]">
-        <section id="renders" aria-labelledby="renders-h" className={screen}>
+        <section id="renders" aria-labelledby="renders-h" className="flex min-h-svh snap-start snap-always flex-col justify-center py-6">
           <h2 id="renders-h" className="sr-only">Renders</h2>
-          {/* one large render beside two stacked; each opens in the lightbox */}
-          <div className="mx-auto grid w-full gap-2 sm:gap-3 max-lg:max-w-[calc((100svh-6rem)*16/27)] lg:grid-cols-3 lg:grid-rows-2 lg:gap-4">
+          {/* one large render on top, two side by side under it; each opens in the lightbox.
+              16:9 renders: the stack is width * 27/32 tall, so the width is capped by the screen height to fit one screen */}
+          <div className="mx-auto grid w-full max-w-[calc((100svh-3rem-1rem)*32/27)] grid-cols-2 gap-2 sm:gap-3 lg:gap-4">
             {renders.map((r, i) => (
-              <figure key={r.src} className={`render group relative m-0 overflow-hidden bg-cap ${i === 0 ? "lg:col-span-2 lg:row-span-2" : ""}`}>
+              <figure key={r.src} className={`render group relative m-0 overflow-hidden bg-cap ${i === 0 ? "col-span-2" : ""}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
                 <img src={r.src} alt={r.alt} width={1920} height={1080} loading="lazy" decoding="async" className="aspect-video h-full w-full object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03] motion-reduce:transition-none" />
                 {/* opens the travelling lightbox (components/lightbox.tsx) */}
