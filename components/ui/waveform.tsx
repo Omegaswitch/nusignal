@@ -52,7 +52,7 @@ export function Waveform({
   const barRefs = React.useRef<(HTMLDivElement | null)[]>([])
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const range = intensityRange[intensity]
-  const barClass = cn(bare ? "flex-1 rounded-t-[1px]" : "w-1.5 rounded-t-sm", variantColor[variant], playing && !bare && variantGlow[variant])
+  const barClass = cn(bare ? "flex-1 rounded-[1px]" : "w-1.5 rounded-t-sm", variantColor[variant], playing && !bare && variantGlow[variant])
   // keep the wave shape the same however many bars there are
   const k = 24 / bars
 
@@ -60,9 +60,15 @@ export function Waveform({
     const audio = audioRef.current
     const root = rootRef.current!
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    let raf = 0, f = 0, onScreen = false
-    // random spikes: a bar jumps toward the top and decays over a few frames, like a burst on the carrier
-    const spikes = new Float32Array(bars)
+    let raf = 0, onScreen = false, last = 0, t = 0
+    // per bar: shown level, and a spike level with its own falling speed (0..1 of the free headroom)
+    const level = new Float32Array(bars), spike = new Float32Array(bars), fall = new Float32Array(bars)
+    const wave = (i: number, time: number) => {
+      // slow drifting carrier: incommensurate sines, so it never visibly repeats and never jitters frame to frame
+      const x = i * k
+      const v = 0.55 * Math.sin(time * 0.55 + x * 0.42) + 0.3 * Math.sin(time * 0.83 - x * 0.21 + 1.7) + 0.15 * Math.sin(time * 1.9 + x * 0.9)
+      return range.min + (range.max - range.min) * (v * 0.5 + 0.5)
+    }
 
     // write straight to the DOM: a setState per frame re-rendered every bar at 60fps
     const paint = (h: (i: number) => number) => {
@@ -73,31 +79,38 @@ export function Waveform({
         el.style.opacity = String(playing ? 0.5 + (v / CONTAINER_HEIGHT) * 0.5 : 0.2)
       })
     }
-    const still = () =>
-      paint((i) => (playing ? range.min + (range.max - range.min) * (Math.sin(i * k * 0.5) * 0.5 + 0.5) : 4))
-    const animate = () => {
+    const still = () => paint((i) => (playing ? wave(i, 0) : 4))
+    const animate = (now: number) => {
       // display:none parents still intersect as 0x0, so check offsetParent too
       if (!root.offsetParent) { raf = 0; return }
-      f++
-      if (Math.random() < 0.06) {
-        // a burst hits a few neighbouring bars, tallest in the middle
-        const c = Math.floor(Math.random() * bars), w = 1 + Math.floor(Math.random() * 3), amp = 0.5 + Math.random() * 0.5
-        for (let d = -w; d <= w; d++) if (bars > c + d && c + d >= 0) spikes[c + d] = Math.max(spikes[c + d], amp * (1 - Math.abs(d) / (w + 1)))
+      const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016)
+      last = now
+      t += dt
+      // spikes: a burst kicks a small cluster of bars toward the top, then gravity pulls them back down
+      if (Math.random() < dt * 1.6) {
+        const c = Math.floor(Math.random() * bars), w = Math.floor(Math.random() * 3), amp = 0.55 + Math.random() * 0.45
+        for (let d = -w; d <= w; d++) {
+          const j = c + d
+          if (j < 0 || j >= bars) continue
+          spike[j] = Math.max(spike[j], amp * (1 - Math.abs(d) / (w + 1.5)))
+          fall[j] = 0
+        }
       }
       paint((i) => {
-        const wave1 = Math.sin(f * 0.06 + i * k * 0.5) * 0.5 + 0.5
-        const wave2 = Math.sin(f * 0.1 + i * k * 0.3 + 2) * 0.3 + 0.3
-        const noise = Math.random() * 0.2
-        const base = range.min + (range.max - range.min) * ((wave1 + wave2 + noise) / 1.5)
-        const v = base + (CONTAINER_HEIGHT - base) * spikes[i]
-        spikes[i] *= 0.86
-        return v
+        fall[i] += 2.2 * dt                     // gravity: the fall accelerates, so a spike snaps up and drops off
+        spike[i] = Math.max(0, spike[i] - fall[i] * dt)
+        const base = wave(i, t)
+        const target = base + (CONTAINER_HEIGHT - base) * spike[i]
+        // asymmetric smoothing: fast attack, slow release
+        const rate = target > level[i] ? 1 - Math.exp(-dt * 30) : 1 - Math.exp(-dt * 6)
+        level[i] += (target - level[i]) * rate
+        return level[i]
       })
       raf = requestAnimationFrame(animate)
     }
     const update = () => {
       cancelAnimationFrame(raf); raf = 0
-      if (playing && !mq.matches && onScreen) raf = requestAnimationFrame(animate)
+      if (playing && !mq.matches && onScreen) { last = 0; raf = requestAnimationFrame(animate) }
       else still()
     }
 
@@ -136,7 +149,7 @@ export function Waveform({
         </div>
       )}
 
-      <div className={cn("flex items-end gap-[2px]", bare ? "justify-between" : "justify-center")} style={{ height: CONTAINER_HEIGHT }}>
+      <div className={cn("flex gap-[2px]", bare ? "items-center justify-between" : "items-end justify-center")} style={{ height: CONTAINER_HEIGHT }}>
         {Array.from({ length: bars }, (_, i) => (
           <div key={i} ref={(el) => { barRefs.current[i] = el }} className={barClass} style={{ height: 4 }} />
         ))}
