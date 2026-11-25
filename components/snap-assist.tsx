@@ -13,41 +13,43 @@ export default function SnapAssist() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const stage = document.querySelector<HTMLElement>("#signal-loss > .sticky");
     if (!stage) return;
-    let lockedUntil = 0;
-
     // our own eased scroll: the browser's smooth scroll is short and abrupt. Snap is paused while it runs,
     // or mandatory snap would yank each intermediate frame back to the nearest point.
     const html = document.documentElement;
-    let anim = 0;
-    const DURATION = 950;
-    const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+    let anim = 0, target = -1;
+    const DURATION = 700;
+    const easeOut = (x: number) => 1 - (1 - x) ** 3; // moves the moment you scroll, then settles softly
     const go = (from: number, dir: number) => {
       const step = stage.offsetHeight; // one screen in svh px, the spacing of every snap point
       const max = html.scrollHeight - window.innerHeight;
       const to = Math.max(0, Math.min(max, (Math.round(from / step) + dir) * step));
-      lockedUntil = performance.now() + DURATION + 150;
       cancelAnimationFrame(anim);
-      if (reduced.matches || to === window.scrollY) { window.scrollTo(0, to); return; }
+      if (reduced.matches || to === window.scrollY) { window.scrollTo(0, to); target = -1; return; }
+      target = to;
       const start = window.scrollY, t0 = performance.now();
       html.style.scrollSnapType = "none";
       const tick = (now: number) => {
         const x = Math.min(1, (now - t0) / DURATION);
-        window.scrollTo(0, start + (to - start) * easeInOut(x));
+        window.scrollTo(0, start + (to - start) * easeOut(x));
         if (x < 1) anim = requestAnimationFrame(tick);
-        else html.style.scrollSnapType = "";
+        else { html.style.scrollSnapType = ""; target = -1; }
       };
       anim = requestAnimationFrame(tick);
     };
 
+    // one gesture = one step. A gesture ends when wheel events pause; trackpad inertia keeps sending smaller
+    // and smaller deltas, so a sudden jump in size during that tail also counts as a new flick.
+    let lastWheel = 0, lastMag = 0;
     const onWheel = (e: WheelEvent) => {
       if (document.querySelector(".lb:not([hidden])")) return; // the lightbox holds the page still
       if (short.matches || e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // ctrl+wheel is zoom
       e.preventDefault();
-      const now = performance.now();
-      // trackpad inertia keeps sending events for a second or more: stay locked until they pause
-      if (now < lockedUntil) { lockedUntil = Math.max(lockedUntil, now + 150); return; }
-      if (Math.abs(e.deltaY) < 8) return;
-      go(window.scrollY, Math.sign(e.deltaY));
+      const now = performance.now(), mag = Math.abs(e.deltaY);
+      const fresh = now - lastWheel > 180 || (mag > 20 && mag > lastMag * 1.8);
+      lastWheel = now; lastMag = mag;
+      if (!fresh || mag < 4) return;
+      // chain from where the current move is heading, so quick flicks flow on instead of being swallowed
+      go(target >= 0 ? target : window.scrollY, Math.sign(e.deltaY));
     };
 
     let startY = 0, startX = 0, startScroll = 0, single = false;
