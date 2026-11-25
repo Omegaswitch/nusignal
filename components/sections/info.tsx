@@ -51,6 +51,7 @@ export function CTA({ className = "" }: { className?: string }) {
       accentFrom="#1f6fe0"
       accentTo="#3b8bff"
       dotColor="#ffffff"
+      glitch
       className={`h-14 rounded-none pl-16 pr-7 font-display text-lg text-white ${className}`}
     />
   );

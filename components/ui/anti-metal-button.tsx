@@ -23,6 +23,8 @@ function DoubleChevron({ index, dotColor }: { index: number; dotColor: string })
 
 type Common = {
   label?: React.ReactNode; accentFrom?: string; accentTo?: string; dotColor?: string; className?: string; children?: React.ReactNode;
+  /** at rest, every few seconds the fill stutters out to a random width and the label jitters, like a bad signal */
+  glitch?: boolean;
 };
 // renders an <a> when given href (the CTA is a link), otherwise a <button>
 type Props = Common &
@@ -32,13 +34,39 @@ type Props = Common &
 /*
  * Transparent face (no outline) with an accent tab on the left. On hover or keyboard focus the accent,
  * full of waving chevrons, takes over the whole button: a clip-path reveal, so it animates on the
- * compositor without re-layout. Size it with className (height, padding, text size).
+ * compositor without re-layout. Size it with className (height, padding, text size). With glitch it
+ * also stutters now and then at rest.
  */
 export const AntiMetalButton = React.forwardRef<HTMLAnchorElement & HTMLButtonElement, Props>(function AntiMetalButton(
-  { className, children, label, accentFrom = "#d6f54a", accentTo = "#c5ea2c", dotColor = "#0f0f0f", ...props },
+  { className, children, label, accentFrom = "#d6f54a", accentTo = "#c5ea2c", dotColor = "#0f0f0f", glitch = false, ...props },
   ref,
 ) {
   const content = label ?? children ?? "Book a demo";
+  const fillRef = React.useRef<HTMLSpanElement>(null);
+  const labelRef = React.useRef<HTMLSpanElement>(null);
+
+  React.useEffect(() => {
+    if (!glitch) return;
+    const mq = matchMedia("(prefers-reduced-motion: reduce)");
+    const r = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+    let timer = 0;
+    const burst = () => {
+      timer = window.setTimeout(burst, r(2800, 6500));
+      const fill = fillRef.current, text = labelRef.current, root = fill?.parentElement;
+      if (!fill || !text || !root || mq.matches || document.hidden || root.matches(":hover, :focus-visible")) return;
+      const rest = getComputedStyle(fill).clipPath;
+      const w = () => `inset(0 ${r(15, 85).toFixed(1)}% 0 0)`;
+      // the fill stutters out to random widths and snaps back; held frames read as a digital glitch, not a slide
+      fill.animate([{ clipPath: rest }, { clipPath: w() }, { clipPath: rest }, { clipPath: w() }, { clipPath: rest }], { duration: r(220, 360), easing: "steps(1, end)" });
+      text.animate([
+        { transform: "translateX(0)", textShadow: "none" },
+        { transform: `translateX(${r(-3, 3).toFixed(1)}px)`, textShadow: "2px 0 rgba(59,139,255,.9), -2px 0 rgba(191,239,255,.6)" },
+        { transform: "translateX(0)", textShadow: "none" },
+      ], { duration: r(160, 260), easing: "steps(3, end)" });
+    };
+    timer = window.setTimeout(burst, r(1500, 3500));
+    return () => clearTimeout(timer);
+  }, [glitch]);
   const cls = cn(
     "group/btn relative inline-flex h-11 items-center overflow-hidden rounded-xl bg-transparent pl-14 pr-5 text-[14px] font-medium tracking-tight text-white",
     "transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -46,14 +74,17 @@ export const AntiMetalButton = React.forwardRef<HTMLAnchorElement & HTMLButtonEl
   );
   const inner = (
     <>
-      <span className="relative">{content}</span>
+      <span ref={labelRef} className="relative">{content}</span>
       {/* the fill sits over the label: at rest only the tab shows; on hover the chevrons take over the whole button */}
       <span
+        ref={fillRef}
         aria-hidden="true"
         className="absolute inset-0 flex items-center gap-2.5 overflow-hidden pl-4 transition-[clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] [clip-path:inset(0_calc(100%-2.375rem)_0_0)] group-hover/btn:[clip-path:inset(0_0_0_0)] group-focus-visible/btn:[clip-path:inset(0_0_0_0)] motion-reduce:transition-none"
         style={{ background: `linear-gradient(90deg, ${accentFrom} 0%, ${accentTo} 100%)` }}
       >
         {Array.from({ length: 14 }, (_, i) => <DoubleChevron key={i} index={i} dotColor={dotColor} />)}
+        {/* scanlines over the fill, for the CRT read */}
+        <span className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.16)_0_1px,transparent_1px_3px)]" />
       </span>
     </>
   );
